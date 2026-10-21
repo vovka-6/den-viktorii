@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#17766B">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self' blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -135,6 +135,8 @@ header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; backgro
 .empty{background:var(--surface); border:1px dashed var(--line); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:10px}
 .empty p{margin:0; color:var(--muted)}
 .over .card{border-style:dashed}
+.rec{background:var(--warn); color:#fff}
+.mic{font-weight:700}
 .plist{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:15px}
 .plist li.miss{color:var(--warn)}
 textarea.field{resize:vertical; min-height:64px; font-family:inherit}
@@ -405,6 +407,68 @@ function addRecurring(r){
 }
 function removeRecurring(id){
   S.recurring = {items:S.recurring.items.filter(r => r.id !== id)}; saveRecurring(); refreshToday();
+}
+
+/* ---------- voice input: on-device speech recognition (Vosk, WebAssembly) ---------- */
+const MODEL_FILE = "vosk-model-small-ru-0.22.tar.gz";
+const VOICE = {model:null, rec:null, ctx:null, stream:null, node:null, src:null, state:"idle", base:"", final:"", partial:"", msg:""};
+function loadScript(src){ return new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("script")); document.head.appendChild(el); }); }
+function showVoiceText(){
+  const t = (VOICE.base + VOICE.final + (VOICE.partial ? (VOICE.final ? " " : "") + VOICE.partial : "")).replace(/\s+/g, " ").trim();
+  S.phraseText = t; const el = document.getElementById("phrase"); if (el) el.value = t;
+}
+function voiceCleanup(){
+  try { VOICE.node && VOICE.node.disconnect(); } catch(e) {}
+  try { VOICE.src && VOICE.src.disconnect(); } catch(e) {}
+  try { VOICE.stream && VOICE.stream.getTracks().forEach(t => t.stop()); } catch(e) {}
+  try { VOICE.ctx && VOICE.ctx.close(); } catch(e) {}
+  try { VOICE.rec && VOICE.rec.remove(); } catch(e) {}
+  VOICE.node = VOICE.src = VOICE.stream = VOICE.ctx = VOICE.rec = null;
+}
+async function voiceStart(){
+  if (VOICE.state !== "idle") return;
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.WebAssembly) {
+    VOICE.msg = "Этот браузер не умеет записывать с микрофона. Откройте приложение в Chrome."; render(); return;
+  }
+  try {
+    if (!window.Vosk) { VOICE.state = "loading"; VOICE.msg = "Загружаю распознавание речи…"; render(); await loadScript("vosk.js"); }
+    if (!VOICE.model) {
+      VOICE.state = "loading";
+      VOICE.msg = lsGet("voiceReady") ? "Готовлю распознавание…" : "Скачиваю модель речи (46 МБ, только в первый раз) — подождите 1–3 минуты…";
+      render();
+      VOICE.model = await window.Vosk.createModel(new URL(MODEL_FILE, location.href).href);
+      lsSet("voiceReady", 1);
+    }
+    VOICE.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, channelCount:1}, video:false});
+    VOICE.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const rec = new VOICE.model.KaldiRecognizer(VOICE.ctx.sampleRate);
+    VOICE.base = S.phraseText.trim() ? S.phraseText.trim() + ". " : ""; VOICE.final = ""; VOICE.partial = "";
+    rec.on("result", m => { const t = (m && m.result && m.result.text) || ""; if (t) VOICE.final += (VOICE.final ? " " : "") + t; VOICE.partial = ""; showVoiceText(); });
+    rec.on("partialresult", m => { VOICE.partial = (m && m.result && m.result.partial) || ""; showVoiceText(); });
+    VOICE.rec = rec;
+    VOICE.src = VOICE.ctx.createMediaStreamSource(VOICE.stream);
+    VOICE.node = VOICE.ctx.createScriptProcessor(4096, 1, 1);
+    VOICE.node.onaudioprocess = e => { try { rec.acceptWaveform(e.inputBuffer); } catch(err) {} };
+    VOICE.src.connect(VOICE.node); VOICE.node.connect(VOICE.ctx.destination);
+    VOICE.state = "listening"; VOICE.msg = "Говорите… Когда закончите, нажмите «Стоп».";
+    S.phrase = null; render();
+  } catch(e) {
+    voiceCleanup(); VOICE.state = "idle";
+    VOICE.msg = (e && (e.name === "NotAllowedError" || e.name === "SecurityError"))
+      ? "Нет доступа к микрофону. Разрешите микрофон для этого сайта: ⋮ → Настройки сайта → Микрофон."
+      : (lsGet("voiceReady") ? "Не получилось включить микрофон. Попробуйте ещё раз." : "Не получилось скачать модель речи. Нужен интернет при первом включении — попробуйте ещё раз.");
+    render();
+  }
+}
+async function voiceStop(){
+  if (VOICE.state !== "listening") return;
+  VOICE.state = "finishing"; render();
+  try { VOICE.rec.retrieveFinalResult(); } catch(e) {}
+  await new Promise(r => setTimeout(r, 800));
+  voiceCleanup(); VOICE.partial = ""; showVoiceText();
+  VOICE.state = "idle"; VOICE.msg = S.phraseText.trim() ? "" : "Не расслышала. Попробуйте говорить ближе к телефону.";
+  if (S.phraseText.trim()) S.phrase = parsePhrase(S.phraseText);
+  render();
 }
 
 /* ---------- one-phrase input (voice via the keyboard microphone, or typed) ---------- */
@@ -933,13 +997,18 @@ function render(){
 
   <section class="add" aria-label="Сказать одной фразой">
     <label class="big" for="phrase">Сказать одной фразой</label>
-    <textarea id="phrase" class="field" rows="2" placeholder="Нажмите микрофон на клавиатуре и скажите, например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
+    <textarea id="phrase" class="field" rows="2" placeholder="Нажмите «Говорить» и скажите, например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
     <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>
     ${S.phrase ? `<div class="suggest" aria-live="polite">
       ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
       <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Отмена</button></div>`
       : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div>`}
-    </div>` : `<div class="row"><button class="primary" data-act="parse">Разобрать фразу</button></div>`}
+    </div>` : `<div class="row">
+      ${VOICE.state === "listening" ? `<button class="primary rec" data-act="voicestop">■ Стоп</button>`
+        : `<button class="ghost mic" data-act="voice" ${VOICE.state !== "idle" ? "disabled" : ""}>${VOICE.state === "idle" ? "🎤 Говорить" : "⏳ Подождите…"}</button>`}
+      <button class="primary" data-act="parse" ${VOICE.state !== "idle" ? "disabled" : ""}>Разобрать фразу</button></div>
+      ${VOICE.msg ? `<div class="why" aria-live="polite">${esc(VOICE.msg)}</div>` : ""}
+      ${!lsGet("voiceReady") && VOICE.state === "idle" ? `<div class="why">При первом нажатии «Говорить» скачается модель речи 46 МБ — лучше по Wi-Fi. Голос распознаётся прямо в телефоне и никуда не отправляется.</div>` : ""}`}
   </section>
 
   <section class="add" aria-label="Новая задача">
@@ -1143,6 +1212,8 @@ document.addEventListener("click", e => {
     case "restore": doRestore(); break;
     case "example": fillExample(); break;
     case "parse": S.phrase = parsePhrase(S.phraseText); render(); break;
+    case "voice": voiceStart(); break;
+    case "voicestop": voiceStop(); break;
     case "cancelphrase": S.phrase = null; render(); break;
     case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = "";
       S.flash = r.n ? `Готово: ${r.n} ${plural(r.n,"изменение","изменения","изменений")}${r.firstDate && r.firstDate !== S.date ? " — смотрите " + relLabel(r.firstDate) : ""}.` : "Нечего применять.";
