@@ -218,7 +218,7 @@ const lsGet = k => { try { const v = localStorage.getItem(LSP+k); return v ? JSO
 const lsSet = (k,v) => { try { localStorage.setItem(LSP+k, JSON.stringify(v)); } catch(e) {} };
 /* ---------- local store (single source on the device) ---------- */
 const lsDel = k => { try { localStorage.removeItem(LSP+k); } catch(e) {} };
-const DOC_RE = /^(settings|stats|day-\d{4}-\d{2}-\d{2})$/;
+const DOC_RE = /^(settings|stats|recurring|day-\d{4}-\d{2}-\d{2})$/;
 const store = {
   mode:"local", watchers:{},
   watch(id, cb){ this.watchers[id] = cb; cb(lsGet(id)); },
@@ -236,7 +236,8 @@ function sanitizeDoc(id, d){
   const m = Number(d && d._m) || 0;
   if (id === "settings") return {...cleanSettings(d), _m:m};
   if (id === "stats") return {...cleanStats(d), _m:m};
-  return {date:id.slice(4), tasks:(d && Array.isArray(d.tasks) ? d.tasks : []).map(cleanTask).filter(Boolean), _m:m};
+  if (id === "recurring") return {...cleanRecurring(d), _m:m};
+  return {date:id.slice(4), tasks:(d && Array.isArray(d.tasks) ? d.tasks : []).map(cleanTask).filter(Boolean), skip:cleanSkip(d && d.skip), _m:m};
 }
 
 /* ---------- sync: one encrypted file in the owner's private GitHub repository ---------- */
@@ -353,6 +354,59 @@ const SYNC = {
   disconnect(){ this.cfg = null; lsDel("sync"); this.status = ""; }
 };
 
+/* ---------- recurring tasks ---------- */
+const DOW_SHORT = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+const DOW_ORDER = [1,2,3,4,5,6,0];
+const daysLabel = days => { const set = new Set(days);
+  if (set.size === 7) return "каждый день";
+  if (set.size === 5 && [1,2,3,4,5].every(x => set.has(x))) return "по будням";
+  if (set.size === 2 && set.has(6) && set.has(0)) return "по выходным";
+  return DOW_ORDER.filter(x => set.has(x)).map(x => DOW_SHORT[x]).join(", "); };
+function materialize(date, tasks, skip){
+  const items = (S.recurring && S.recurring.items) || [];
+  const dow = fromKey(date).getDay(), today = dkey(new Date());
+  let out = tasks.map(t => ({...t})), changed = false;
+  const want = new Map();
+  for (const r of items) {
+    if (!r.days.includes(dow) || date < r.from) continue;
+    want.set(r.id, {r, prep:false});
+    if (r.prep && r.cat === "lesson") want.set(r.id + "p", {r, prep:true});
+  }
+  for (const [rid, {r, prep}] of want) {
+    if (skip.includes(rid)) continue;
+    const ex = out.find(t => t.rid === rid);
+    const tpl = prep ? {title:"Подготовка: " + r.title, cat:"prep", min:20, fixed:""} : {title:r.title, cat:r.cat, min:r.min, fixed:r.fixed};
+    if (!ex) { out.push({id:uid(), rid, ...tpl, done:false}); changed = true; }
+    else if (!ex.done && !ex.custom && (ex.title !== tpl.title || ex.cat !== tpl.cat || ex.min !== tpl.min || ex.fixed !== tpl.fixed)) { Object.assign(ex, tpl); changed = true; }
+  }
+  if (date >= today) {
+    const before = out.length;
+    out = out.filter(t => !t.rid || t.done || want.has(t.rid));
+    if (out.length !== before) changed = true;
+  }
+  return {tasks:out, changed};
+}
+function loadDay(date){
+  const d = lsGet(dayId(date));
+  const tasks = d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+  const skip = cleanSkip(d && d.skip);
+  const m = materialize(date, tasks, skip);
+  return {tasks:m.tasks, skip, changed:m.changed};
+}
+function saveRecurring(){ store.save("recurring", S.recurring); }
+function refreshToday(){
+  if (!S.dayLoaded) return;
+  const m = materialize(S.date, S.tasks, S.skip);
+  if (m.changed) { S.tasks = m.tasks; saveDay(); }
+}
+function addRecurring(r){
+  const item = {id:uid(), title:r.title, cat:safeCat(r.cat), min:r5(r.min), fixed:r.fixed || "", days:r.days, prep:!!r.prep, from:dkey(new Date())};
+  S.recurring = {items:[...S.recurring.items, item]}; saveRecurring(); return item;
+}
+function removeRecurring(id){
+  S.recurring = {items:S.recurring.items.filter(r => r.id !== id)}; saveRecurring(); refreshToday();
+}
+
 /* ---------- one-phrase input (voice via the keyboard microphone, or typed) ---------- */
 const WEEKDAY_STEMS = [["воскресень",0],["понедельник",1],["вторник",2],["сред",3],["четверг",4],["пятниц",5],["суббот",6]];
 function relLabel(k){
@@ -422,16 +476,45 @@ function findTask(tasks, target){
 }
 function dayTasks(date){
   if (date === S.date) return S.tasks;
-  const d = lsGet(dayId(date)); return d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+  return loadDay(date).tasks;
+}
+const WD = "понедельник\\S*|вторник\\S*|сред[аеуы]\\S*|четверг\\S*|пятниц\\S*|суббот\\S*|воскресень\\S*";
+const REC_RE = new RegExp("(?:^|\\s)(?:(?:каждый|каждую|каждое|каждые)\\s+(?:день|будний\\s+день|(?:" + WD + "))|по\\s+(?:будням|выходным|(?:" + WD + "))|ежедневно)(?:\\s*(?:,|и)?\\s*(?:(?:в|во|по|каждый|каждую|каждое)\\s+)?(?:" + WD + "))*(?=\\s|$)");
+function wdOf(w){ const st = WEEKDAY_STEMS.find(([x]) => w.startsWith(x.slice(0, 4))); return st ? st[1] : null; }
+function takeRecurring(s){
+  const m = s.match(REC_RE); if (!m) return null;
+  const ph = m[0]; let days = [];
+  if (/ежедневно|каждый\s+день|каждое\s+утро/.test(ph)) days = [0,1,2,3,4,5,6];
+  else if (/будн/.test(ph)) days = [1,2,3,4,5];
+  else if (/выходн/.test(ph)) days = [0,6];
+  else days = ph.split(/[\s,]+/).map(wdOf).filter(x => x !== null);
+  days = [...new Set(days)];
+  return days.length ? {days, rest:s.replace(ph, " ")} : null;
 }
 function parsePhrase(text){
-  const raw = String(text || "").toLowerCase().replace(/ё/g, "е").replace(/[«»"“”]/g, " ");
-  const globalDate = takeDate(raw).date;
+  let raw = String(text || "").toLowerCase().replace(/ё/g, "е").replace(/[«»"“”]/g, " ");
+  raw = raw.replace(new RegExp("(" + WD + ")\\s*,\\s*(?=(?:и\\s+)?(?:(?:в|во|по)\\s+)?(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень))", "g"), "$1 и ");
+  const globalDate = takeDate(raw.replace(REC_RE, " ")).date;
   const clauses = raw.split(/\s*(?:[.;!?\n]+|,|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
   const actions = [];
   let ctxDate = globalDate || S.date;
   for (const clause of clauses) {
     let c = " " + clause + " ";
+    const rec = takeRecurring(c);
+    if (rec) {
+      let r = rec.rest, mm;
+      if ((mm = r.match(/^\s*(?:удали|удалить|убери|убрать|отмени|отменить|больше\s+нет|не\s+будет)\s+(.+)$/)) || (mm = r.match(/^\s*(.+?)\s+(?:больше\s+не\s+будет|отменили|отменилось|отменяется)\s*$/))) {
+        const t = findTask(S.recurring.items, mm[1]);
+        actions.push(t ? {type:"recdel", id:t.id, title:t.title, days:rec.days} : {type:"miss", target:tidyTitle(mm[1]) + " (среди постоянных дел)", date:S.date});
+        continue;
+      }
+      const du = takeDuration(r); r = du.rest;
+      const tm = takeTime(r); r = tm.rest;
+      const title = tidyTitle(r); if (!title) continue;
+      const e = estimate(title);
+      actions.push({type:"rec", title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", days:rec.days});
+      continue;
+    }
     const dt = takeDate(c); if (dt.date) { ctxDate = dt.date; c = dt.rest; }
     const date = ctxDate;
     let m;
@@ -470,33 +553,45 @@ function describe(a){
   if (a.type === "move") return `Перенести: ${a.title}${when(a.date)} → ${a.toDate !== a.date ? relLabel(a.toDate) : ""}${a.toDate !== a.date && a.toTime ? ", " : ""}${a.toTime ? "в " + a.toTime : ""}`;
   if (a.type === "done") return `Отметить сделанным: ${a.title}${when(a.date)}`;
   if (a.type === "del") return `Удалить: ${a.title}${when(a.date)}`;
+  if (a.type === "rec") return `Постоянное дело: ${a.title} — ${daysLabel(a.days)}${a.fixed ? ", в " + a.fixed : ""}, ${dur(a.min)}${a.cat === "lesson" ? " + подготовка" : ""}`;
+  if (a.type === "recdel") return `Убрать из постоянных: ${a.title} — ${daysLabel(a.days)}`;
   return `Не нашла задачу «${a.target}» — проверьте название`;
 }
 function applyActions(actions){
-  const days = {};
-  const get = d => (days[d] = days[d] || dayTasks(d).map(t => ({...t})));
-  let n = 0, firstDate = null;
+  const days = {}, skips = {};
+  const get = d => { if (!days[d]) { if (d === S.date) { days[d] = S.tasks.map(t => ({...t})); skips[d] = [...S.skip]; } else { const L = loadDay(d); days[d] = L.tasks; skips[d] = L.skip; } } return days[d]; };
+  let n = 0, firstDate = null, recChanged = false;
   for (const a of actions) {
+    if (a.type === "rec") { addRecurring({...a, prep:a.cat === "lesson"}); recChanged = true; n++; continue; }
+    if (a.type === "recdel") {
+      const it = S.recurring.items.find(r => r.id === a.id); if (!it) continue;
+      const left = it.days.filter(x => !a.days.includes(x));
+      S.recurring = {items: left.length ? S.recurring.items.map(r => r.id === a.id ? {...r, days:left} : r) : S.recurring.items.filter(r => r.id !== a.id)};
+      saveRecurring(); recChanged = true; n++; continue;
+    }
     if (a.type === "add") {
       const list = get(a.date);
       if (a.cat === "lesson") { const pe = estimate("Подготовка к занятию"); list.push({id:uid(), title:"Подготовка: " + a.title, cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false}); }
       list.push({id:uid(), title:a.title, cat:safeCat(a.cat), min:r5(a.min), fixed:a.fixed || "", done:false});
       n++; firstDate = firstDate || a.date;
     } else if (a.type === "del") {
+      const gone = get(a.date).find(t => t.id === a.id);
+      if (gone && gone.rid) skips[a.date].push(gone.rid);
       days[a.date] = get(a.date).filter(t => t.id !== a.id); n++;
     } else if (a.type === "done") {
       const t = get(a.date).find(t => t.id === a.id); if (t) { t.done = true; n++; }
     } else if (a.type === "move") {
       const src = get(a.date); const t = src.find(t => t.id === a.id); if (!t) continue;
-      if (a.toDate !== a.date) { days[a.date] = src.filter(x => x.id !== a.id); get(a.toDate).push({...t, id:uid(), fixed:a.toTime || ""}); }
-      else t.fixed = a.toTime || t.fixed;
+      if (a.toDate !== a.date) { if (t.rid) skips[a.date].push(t.rid); days[a.date] = src.filter(x => x.id !== a.id); const cp = {...t, id:uid(), fixed:a.toTime || ""}; delete cp.rid; delete cp.custom; get(a.toDate).push(cp); }
+      else { t.fixed = a.toTime || t.fixed; if (t.rid) t.custom = true; }
       n++; firstDate = firstDate || a.toDate;
     }
   }
   for (const [d, list] of Object.entries(days)) {
-    if (d === S.date) { S.tasks = list; saveDay(); }
-    else store.save(dayId(d), {date:d, tasks:list});
+    if (d === S.date) { S.tasks = list; S.skip = skips[d]; saveDay(); }
+    else store.save(dayId(d), {date:d, tasks:list, skip:skips[d]});
   }
+  if (recChanged) refreshToday();
   return {n, firstDate};
 }
 
@@ -511,14 +606,22 @@ const S = {
   editing: null,
   showSettings: false,
   sample: null, aiBusy:false, aiMsg:"",
-  phraseText:"", phrase:null, syncMsg:"", syncBusy:false
+  phraseText:"", phrase:null, syncMsg:"", syncBusy:false,
+  recurring:{items:[]}, skip:[], editDays:[]
 };
 const dayId = k => "day-" + k;
 
 function watchDay(){
-  store.watch(dayId(S.date), d => { S.tasks = (d && Array.isArray(d.tasks)) ? d.tasks.map(cleanTask).filter(Boolean) : []; render(); });
+  store.watch(dayId(S.date), d => {
+    const tasks = (d && Array.isArray(d.tasks)) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+    S.skip = cleanSkip(d && d.skip);
+    const m = materialize(S.date, tasks, S.skip);
+    S.tasks = m.tasks; S.dayLoaded = true;
+    if (m.changed) saveDay();
+    render();
+  });
 }
-function saveDay(){ store.save(dayId(S.date), {date:S.date, tasks:S.tasks}); }
+function saveDay(){ store.save(dayId(S.date), {date:S.date, tasks:S.tasks, skip:S.skip}); }
 function saveStats(){ store.save("stats", S.stats); }
 function saveSettings(){ store.save("settings", S.settings); }
 
@@ -560,7 +663,24 @@ function cleanTask(t){
   const out = {id, title:String(t.title || "").slice(0, 200), cat:safeCat(t.cat),
     min:r5(clampNum(t.min, 5, 600, 30)), fixed:TIME_RE.test(t.fixed) ? t.fixed : "", done:!!t.done};
   if (Number(t.actual) > 0) out.actual = Math.min(600, Math.round(Number(t.actual)));
+  const rid = String(t.rid || "").replace(/[^a-z0-9]/gi, "").slice(0, 20);
+  if (rid) { out.rid = rid; if (t.custom) out.custom = true; }
   return out;
+}
+const cleanSkip = a => Array.isArray(a) ? a.map(x => String(x).replace(/[^a-z0-9]/gi, "").slice(0, 20)).filter(Boolean).slice(0, 200) : [];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function cleanRecurring(d){
+  const items = [];
+  for (const r of (d && Array.isArray(d.items) ? d.items : []).slice(0, 100)) {
+    if (!r || typeof r !== "object") continue;
+    const id = String(r.id || "").replace(/[^a-z0-9]/gi, "").slice(0, 16); if (!id) continue;
+    const days = [...new Set((Array.isArray(r.days) ? r.days : []).map(Number).filter(x => Number.isInteger(x) && x >= 0 && x <= 6))].sort();
+    const title = String(r.title || "").slice(0, 200).trim();
+    if (!days.length || !title) continue;
+    items.push({id, title, cat:safeCat(r.cat), min:r5(clampNum(r.min, 5, 600, 30)), fixed:TIME_RE.test(r.fixed) ? r.fixed : "",
+      days, prep:!!r.prep, from:DATE_RE.test(r.from) ? r.from : dkey(new Date())});
+  }
+  return {items};
 }
 function cleanSettings(d){
   d = d || {};
@@ -702,14 +822,15 @@ function move(id, dir){
   [S.tasks[a], S.tasks[b]] = [S.tasks[b], S.tasks[a]];
   saveDay(); render();
 }
-function goDate(k){ store.unwatch(dayId(S.date)); S.date = k; S.askingDone = null; watchDay(); render(); window.scrollTo({top:0}); }
+function goDate(k){ store.unwatch(dayId(S.date)); S.dayLoaded = false; S.date = k; S.askingDone = null; watchDay(); render(); window.scrollTo({top:0}); }
 async function carryOver(){
   const left = S.tasks.filter(t => !t.done);
   if (!left.length) return;
   const next = addDays(S.date, 1);
   const existing = (lsGet(dayId(next)) || {}).tasks || [];
   let nextTasks = existing;
-  const moved = left.map(t => ({...t, id:uid(), fixed:""}));
+  const moved = left.map(t => { const c = {...t, id:uid(), fixed:""}; delete c.rid; delete c.custom; return c; });
+  left.forEach(t => { if (t.rid) S.skip.push(t.rid); });
   await store.save(dayId(next), {date:next, tasks:[...nextTasks.map(t => ({...t})), ...moved]});
   S.tasks = S.tasks.filter(t => t.done);
   saveDay();
@@ -769,7 +890,7 @@ function render(){
         <button class="tick" data-act="done" data-id="${esc(t.id)}" aria-label="${t.done?"Отметить как не сделано":"Отметить как сделано"}">${ICON.tick}</button>
         <div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0">
           <div class="t">${esc(t.title)}</div>
-          <div class="m"><span>${esc(CATS[t.cat]?.short || "Другое")}</span><span class="num">${dur(t.min)}</span>${t.fixed?`<span class="pin">в ${esc(t.fixed)}</span>`:""}${t.actual?`<span class="num">факт ${dur(t.actual)}</span>`:""}${clash?`<span style="color:var(--warn);font-weight:700">пересекается</span>`:""}</div>
+          <div class="m"><span>${esc(CATS[t.cat]?.short || "Другое")}</span><span class="num">${dur(t.min)}</span>${t.fixed?`<span class="pin">в ${esc(t.fixed)}</span>`:""}${t.rid?`<span title="Постоянное дело">↻ постоянное</span>`:""}${t.actual?`<span class="num">факт ${dur(t.actual)}</span>`:""}${clash?`<span style="color:var(--warn);font-weight:700">пересекается</span>`:""}</div>
           ${S.askingDone===t.id ? `<div class="actual" data-stop="1">Сколько заняло? <input id="act-${esc(t.id)}" type="number" inputmode="numeric" min="1" max="600" value="${Number(t.min)||30}" aria-label="Минут на самом деле"> мин
              <button class="ghost" data-act="actual" data-id="${esc(t.id)}">Сохранить</button><button class="linkbtn" data-act="skipactual">Не важно</button></div>` : ""}
         </div>
@@ -813,7 +934,7 @@ function render(){
   <section class="add" aria-label="Сказать одной фразой">
     <label class="big" for="phrase">Сказать одной фразой</label>
     <textarea id="phrase" class="field" rows="2" placeholder="Нажмите микрофон на клавиатуре и скажите, например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
-    <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала».</div>
+    <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>
     ${S.phrase ? `<div class="suggest" aria-live="polite">
       ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
       <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Отмена</button></div>`
@@ -873,6 +994,9 @@ function editSheet(){
     <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${t.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
     <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${Number(t.min)||30}">
       <label for="e-fixed">Точное время</label><input id="e-fixed" class="time" type="time" value="${esc(t.fixed||"")}"></div>
+    ${String(t.rid||"").endsWith("p") ? "" : `<div class="why">Повторять каждую неделю по дням:</div>
+    <div class="cats" role="group" aria-label="Дни повтора">${DOW_ORDER.map(x => `<button class="cat" data-act="eday" data-day="${Number(x)}" aria-pressed="${S.editDays.includes(x) ? "true" : "false"}">${esc(DOW_SHORT[x])}</button>`).join("")}</div>
+    ${t.rid ? `<div class="why">Это постоянное дело. «Удалить» уберёт его только из этого дня.</div>` : ""}`}
     <div class="actions"><button class="ghost danger" data-act="delete">Удалить</button>
       <span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="saveedit">Сохранить</button></span></div>
   </div></div>`;
@@ -888,6 +1012,9 @@ function settingsSheet(){
       <label for="s-after">После занятия (записи, проветрить), мин</label><input id="s-after" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.afterLesson)||0}">
     </div>
     <div class="actions"><span></span><span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="savesettings">Сохранить</button></span></div>
+    <h3>Постоянные дела</h3>
+    ${S.recurring.items.length ? `<ul class="plist">${S.recurring.items.map(r => `<li>${esc(r.title)} — ${esc(daysLabel(r.days))}${r.fixed ? ", в " + esc(r.fixed) : ""}, ${dur(r.min)} <button class="linkbtn danger" style="border:0" data-act="recdel" data-id="${esc(r.id)}">убрать</button></li>`).join("")}</ul>`
+      : `<p class="store" style="margin:0">Пока нет. Скажите или напишите, например: «каждый понедельник и пятницу в 10 занятие с Мишей», или откройте задачу и отметьте дни повтора.</p>`}
     <h3>Телефон и компьютер</h3>
     ${SYNC.enabled() ? `<div class="syncbox">
       <p class="store" style="margin:0">Синхронизация включена: ${esc(SYNC.cfg.repo)}. ${esc(SYNC.status)}</p>
@@ -929,8 +1056,8 @@ function doRestore(){
   for (const [k, v] of Object.entries(obj.data)) {
     if (DOC_RE.test(k) && v && typeof v === "object") { lsSet(k, {...sanitizeDoc(k, v), _m:Date.now()}); n++; }
   }
-  S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats"));
-  const d = lsGet(dayId(S.date)); S.tasks = d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+  S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats")); S.recurring = cleanRecurring(lsGet("recurring"));
+  { const L = loadDay(S.date); S.tasks = L.tasks; S.skip = L.skip; S.dayLoaded = true; if (L.changed) saveDay(); }
   SYNC.schedule();
   S.backupMsg = `Восстановлено: ${n} ${plural(n,"запись","записи","записей")}.`;
   render();
@@ -959,7 +1086,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "title") { e.preventDefault(); submitDraft(); }
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.id === "phrase") { e.preventDefault(); S.phrase = parsePhrase(S.phraseText); render(); }
   if (e.key === "Enter" && e.target.id && e.target.id.startsWith("act-")) { e.preventDefault(); saveActual(e.target.id.slice(4), e.target.value); }
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="edit"]')) { e.preventDefault(); S.editing = e.target.dataset.id; render(); }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="edit"]')) { e.preventDefault(); e.target.click(); }
   if (e.key === "Escape" && (S.editing || S.showSettings)) { S.editing = null; S.showSettings = false; render(); }
 });
 document.addEventListener("click", e => {
@@ -984,14 +1111,26 @@ document.addEventListener("click", e => {
     case "skipactual": S.askingDone = null; render(); break;
     case "up": move(id,-1); break;
     case "down": move(id,1); break;
-    case "edit": S.editing = id; render(); break;
+    case "edit": { S.editing = id; const t = S.tasks.find(x => x.id === id); const r = t && t.rid ? S.recurring.items.find(x => x.id === t.rid) : null; S.editDays = r ? [...r.days] : []; render(); break; }
     case "ecat": { const t = S.tasks.find(x => x.id === S.editing); if (t) { t._cat = el.dataset.cat; document.querySelectorAll('.sheet .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === el.dataset.cat))); } break; }
+    case "eday": { const x = Number(el.dataset.day); S.editDays = S.editDays.includes(x) ? S.editDays.filter(y => y !== x) : [...S.editDays, x];
+      el.setAttribute("aria-pressed", String(S.editDays.includes(x))); break; }
     case "saveedit": { const t = S.tasks.find(x => x.id === S.editing); if (t) {
         const title = $("#e-title").value.trim(); if (title) t.title = title;
         t.min = r5(Number($("#e-min").value) || t.min); t.fixed = $("#e-fixed").value || "";
-        if (t._cat) { t.cat = t._cat; } delete t._cat; saveDay(); }
+        if (t._cat) { t.cat = t._cat; } delete t._cat;
+        const isPrep = String(t.rid||"").endsWith("p");
+        if (!isPrep) {
+          const days = [...new Set(S.editDays)];
+          if (t.rid && days.length) { S.recurring = {items:S.recurring.items.map(r => r.id === t.rid ? {...r, title:t.title, cat:t.cat, min:t.min, fixed:t.fixed, days} : r)}; delete t.custom; saveRecurring(); }
+          else if (t.rid && !days.length) { const rid = t.rid; delete t.rid; delete t.custom; S.recurring = {items:S.recurring.items.filter(r => r.id !== rid)}; saveRecurring(); }
+          else if (!t.rid && days.length) { const it = addRecurring({title:t.title, cat:t.cat, min:t.min, fixed:t.fixed, days, prep:false}); t.rid = it.id; }
+        } else t.custom = true;
+        saveDay(); refreshToday(); }
       S.editing = null; render(); break; }
-    case "delete": S.tasks = S.tasks.filter(x => x.id !== S.editing); S.editing = null; saveDay(); render(); break;
+    case "delete": { const t = S.tasks.find(x => x.id === S.editing); if (t && t.rid) S.skip.push(t.rid);
+      S.tasks = S.tasks.filter(x => x.id !== S.editing); S.editing = null; saveDay(); render(); break; }
+    case "recdel": removeRecurring(id); render(); break;
     case "closesheet": { const t = S.tasks.find(x => x.id === S.editing); if (t) delete t._cat; S.editing = null; S.showSettings = false; render(); break; }
     case "settings": S.showSettings = true; S.backupMsg = ""; render(); break;
     case "savesettings": {
@@ -1023,6 +1162,7 @@ document.addEventListener("click", e => {
 /* ---------- boot ---------- */
 store.watch("settings", d => { S.settings = cleanSettings(d); render(); });
 store.watch("stats", d => { S.stats = cleanStats(d); render(); });
+store.watch("recurring", d => { S.recurring = cleanRecurring(d); refreshToday(); render(); });
 watchDay();
 SYNC.load();
 render();
