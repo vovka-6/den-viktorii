@@ -529,16 +529,45 @@ function relLabel(k){
   if (k === t) return "сегодня"; if (k === addDays(t,1)) return "завтра"; if (k === addDays(t,2)) return "послезавтра";
   return fromKey(k).toLocaleDateString("ru-RU", {weekday:"short", day:"numeric", month:"long"});
 }
+const MONTHS_GEN = {"января":0,"февраля":1,"марта":2,"апреля":3,"мая":4,"июня":5,"июля":6,"августа":7,"сентября":8,"октября":9,"ноября":10,"декабря":11};
+const WD_RE = "понедельник\\S*|вторник\\S*|сред[ауы]|четверг\\S*|пятниц\\S*|суббот\\S*|воскресень\\S*";
+function nextMonday(today){ const dow = fromKey(today).getDay(); return addDays(today, ((8 - dow) % 7) || 7); }
 function takeDate(s){
   const today = dkey(new Date());
+  const hit = (m, date, kind) => ({date, kind, at:m.index, rest:s.slice(0, m.index) + " " + s.slice(m.index + m[0].length)});
   let m;
-  if ((m = s.match(/(^|\s)послезавтра(?=\s|$)/))) return {date:addDays(today,2), rest:s.replace(m[0], " ")};
-  if ((m = s.match(/(^|\s)завтра(?=\s|$)/))) return {date:addDays(today,1), rest:s.replace(m[0], " ")};
-  if ((m = s.match(/(^|\s)сегодня(?=\s|$)/))) return {date:today, rest:s.replace(m[0], " ")};
-  if ((m = s.match(/(^|\s)(?:в|во|на)?\s*(понедельник|вторник|среду|среда|четверг|пятницу|пятница|субботу|суббота|воскресенье)(?=\s|$)/))) {
-    const wd = WEEKDAY_STEMS.find(([st]) => m[2].startsWith(st))[1];
-    const d = new Date(); const diff = (wd - d.getDay() + 7) % 7;
-    return {date:addDays(today, diff), rest:s.replace(m[0], " ")};
+  if ((m = s.match(/(^|\s)послепослезавтра(?=\s|$)/))) return hit(m, addDays(today, 3), "rel");
+  if ((m = s.match(/(^|\s)послезавтра(?=\s|$)/))) return hit(m, addDays(today, 2), "rel");
+  if ((m = s.match(/(^|\s)завтра(?=\s|$)/))) return hit(m, addDays(today, 1), "rel");
+  if ((m = s.match(/(^|\s)сегодня(?=\s|$)/))) return hit(m, today, "rel");
+  // "через 3 дня", "через неделю", "через 2 недели"
+  if ((m = s.match(/(^|\s)через\s+(\d{1,3})\s+(?:дн\S*|день|сут\S*)(?=\s|$)/))) return hit(m, addDays(today, Number(m[2])), "rel");
+  if ((m = s.match(/(^|\s)через\s+(?:(\d{1,2})\s+)?недел\S*(?=\s|$)/))) return hit(m, addDays(today, 7 * (Number(m[2]) || 1)), "rel");
+  // "25 октября", "25-го октября", "1 ноября" (this year, or next year if already passed)
+  if ((m = s.match(/(^|\s)(?:на\s+|в\s+)?(\d{1,2})(?:\s*-?\s*(?:го|е|ое))?\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?=\s|$)/))) {
+    const d = Number(m[2]), mo = MONTHS_GEN[m[3]], t = fromKey(today);
+    let dt = new Date(t.getFullYear(), mo, d);
+    if (dt.getMonth() === mo && dt.getDate() === d) { if (dkey(dt) < today) dt = new Date(t.getFullYear() + 1, mo, d); return hit(m, dkey(dt), "date"); }
+  }
+  // "25-го", "25-го числа", "25 числа" (this month, or next month if already passed)
+  if ((m = s.match(/(^|\s)(?:на\s+|в\s+)?(\d{1,2})(?:\s*-?\s*(?:го|е|ое)(?:\s+числа)?|\s+числа)(?=\s|$)/))) {
+    const d = Number(m[2]), t = fromKey(today);
+    if (d >= 1 && d <= 31) {
+      let dt = new Date(t.getFullYear(), t.getMonth(), d);
+      if (dt.getDate() !== d || dkey(dt) < today) { dt = new Date(t.getFullYear(), t.getMonth() + 1, d); }
+      if (dt.getDate() === d) return hit(m, dkey(dt), "date");
+    }
+  }
+  // "в следующий понедельник", "в следующую среду"
+  if ((m = s.match(new RegExp("(^|\\s)(?:в|во|на)?\\s*следующ\\S*\\s+(" + WD_RE + ")(?=\\s|$)")))) {
+    const wd = wdOf(m[2]); if (wd !== null) return hit(m, addDays(nextMonday(today), (wd + 6) % 7), "nextweek");
+  }
+  // "на следующей неделе" -> Monday of next week
+  if ((m = s.match(/(^|\s)(?:на|в)\s+следующ\S*\s+недел\S*(?=\s|$)/))) return hit(m, nextMonday(today), "nextweek");
+  // "в пятницу", "в среду" -> the nearest such day (today if it is today)
+  if ((m = s.match(new RegExp("(^|\\s)(?:в|во|на)?\\s*(" + WD_RE + ")(?=\\s|$)")))) {
+    const wd = wdOf(m[2]);
+    if (wd !== null) return hit(m, addDays(today, (wd - fromKey(today).getDay() + 7) % 7), "weekday");
   }
   return {date:null, rest:s};
 }
@@ -620,6 +649,12 @@ function spokenToDigits(text){
   // "в половине десятого", "полдесятого", "пол десятого" -> 9:30
   t = t.replace(/(?:(\s(?:в|к)\s+)половин[еуы]\s+|\s(?:в\s+|к\s+)?пол\s*-?\s*)(первого|второго|третьего|четвертого|пятого|шестого|седьмого|восьмого|девятого|десятого|одиннадцатого|двенадцатого)(?=\s)/g,
     (m, pre, w) => ` в ${ORD_GEN[w] === 1 ? 12 : ORD_GEN[w] - 1}:30`);
+  // ordinal day numbers: "двадцать пятого (октября)" -> "25-го", "первое ноября" -> "1-го ноября"
+  const ORD_DAY = {"перв":1,"втор":2,"трет":3,"четверт":4,"пят":5,"шест":6,"седьм":7,"восьм":8,"девят":9,"десят":10,"одиннадцат":11,"двенадцат":12,"тринадцат":13,"четырнадцат":14,"пятнадцат":15,"шестнадцат":16,"семнадцат":17,"восемнадцат":18,"девятнадцат":19,"двадцат":20,"тридцат":30};
+  const ordRe = "(" + Object.keys(ORD_DAY).sort((a, b) => b.length - a.length).join("|") + ")(?:ого|ое|ье|ья|его)";
+  t = t.replace(new RegExp("(\\s)(двадцать|тридцать)\\s+" + ordRe + "(?=\\s)", "g"), (m, sp, tens, u) => `${sp}${(tens === "двадцать" ? 20 : 30) + ORD_DAY[u]}-го`);
+  t = t.replace(new RegExp("(\\s)" + ordRe + "(?=\\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря|числа)\\s)", "g"), (m, sp, u) => `${sp}${ORD_DAY[u]}-го`);
+  t = t.replace(new RegExp("(\\s(?:до|к|ко|на)\\s+)" + ordRe + "(?=\\s)", "g"), (m, pre, u) => `${pre}${ORD_DAY[u]}-го`);
   // number words -> numbers ("двадцать пять" -> 25)
   const words = t.trim().split(/\s+/), out = [];
   for (let i = 0; i < words.length; i++) {
@@ -639,19 +674,25 @@ function spokenToDigits(text){
   return t.trim();
 }
 
-const DEADLINE_RE = /(?:^|\s)(?:до|к|ко)\s+(послезавтр\S*|завтр\S*|понедельник\S*|вторник\S*|сред\S*|четверг\S*|пятниц\S*|суббот\S*|воскресень\S*)(?=\s|$)/;
+const DEADLINE_RE = /(?:^|\s)(?:до|к|ко)\s+(?=\S)/g;
 function takeDeadline(s){
-  const m = s.match(DEADLINE_RE); if (!m) return null;
-  const today = dkey(new Date()); let due;
-  if (/^послезавтр/.test(m[1])) due = addDays(today, 2);
-  else if (/^завтр/.test(m[1])) due = addDays(today, 1);
-  else { const wd = wdOf(m[1]); if (wd === null) return null; const diff = ((wd - new Date().getDay() + 7) % 7) || 7; due = addDays(today, diff); }
-  return {due, rest:s.replace(m[0], " ")};
+  DEADLINE_RE.lastIndex = 0;
+  let m;
+  while ((m = DEADLINE_RE.exec(s))) {
+    const after = s.slice(m.index + m[0].length);
+    const r = takeDate(" " + after);
+    if (!r.date || r.at > 1 || /^\s*(?:в|во|на)\s/.test(" " + after.slice(0, 4))) continue;     // the date must follow "до/к" directly
+    let due = r.date; const today = dkey(new Date());
+    if (r.kind === "weekday" && due === today) due = addDays(today, 7);                         // "до четверга" said on Thursday
+    return {due, rest:s.slice(0, m.index) + " " + r.rest};
+  }
+  return null;
 }
 function parsePhrase(text){
   let raw = spokenToDigits(String(text || "")).replace(/[«»"“”]/g, " ");
   raw = raw.replace(new RegExp("(" + WD + ")\\s*,\\s*(?=(?:и\\s+)?(?:(?:в|во|по)\\s+)?(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень))", "g"), "$1 и ");
-  const globalDate = takeDate(raw.replace(REC_RE, " ").replace(new RegExp(DEADLINE_RE.source, "g"), " ")).date;
+  const noDl = (() => { let x = raw.replace(REC_RE, " "), d; while ((d = takeDeadline(x))) x = d.rest; return x; })();
+  const globalDate = takeDate(noDl).date;
   const clauses = raw.split(/\s*(?:[.;!?\n]+|,|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
   const actions = [];
   let ctxDate = globalDate || S.date;

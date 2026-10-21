@@ -1,6 +1,6 @@
 // Offline support: keeps the app's own files on the phone. Only this site's own files are cached;
 // the planner's data never passes through here (it lives in the phone's localStorage).
-const CACHE = "den-viktorii-v7";
+const CACHE = "den-viktorii-v8";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./icon-maskable-512.png", "./apple-touch-icon.png", "./favicon.png"];
 
