@@ -42,7 +42,7 @@ body{margin:0} [hidden]{display:none!important} img{max-width:100%}
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
 body{color:var(--ink); font-family:var(--f-body); font-size:16px; line-height:1.45;
-  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:0 40px}
+  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:0 130px}
 body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--bg)}
 .wrap{max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
 button,input,select{font:inherit; color:inherit}
@@ -137,6 +137,29 @@ header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; backgro
 .over .card{border-style:dashed}
 .rec{background:var(--warn); color:#fff}
 .mic{font-weight:700}
+.fab{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom,0px)); z-index:15;
+  min-width:min(330px, calc(100% - 32px)); height:68px; border-radius:999px; border:0; background:var(--accent); color:var(--accent-ink);
+  font-size:20px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:12px; box-shadow:0 8px 22px rgba(0,0,0,.28)}
+.fab svg{width:28px; height:28px}
+.listen{position:fixed; inset:auto 0 0 0; z-index:25; background:var(--surface); border-radius:22px 22px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.25);
+  padding:20px max(16px, env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px));
+  display:flex; flex-direction:column; gap:14px; max-width:560px; margin:0 auto}
+.listen h3{margin:0; font-family:var(--f-display); font-size:20px; display:flex; align-items:center; gap:10px}
+.listen .live{min-height:72px; font-size:20px; line-height:1.4; background:var(--bg); border-radius:14px; padding:12px 14px; overflow-wrap:anywhere}
+.listen .live:empty::before{content:"…"; color:var(--muted)}
+.listen .big{height:60px; font-size:19px; border-radius:16px}
+.pulse{width:14px; height:14px; border-radius:50%; background:var(--warn); flex:none}
+@media (prefers-reduced-motion: no-preference){ .pulse{animation:pulse 1.2s ease-in-out infinite} @keyframes pulse{50%{opacity:.25; transform:scale(.7)}} }
+.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(96px + env(safe-area-inset-bottom,0px)); z-index:16;
+  width:min(528px, calc(100% - 32px)); background:var(--ink); color:var(--bg); border-radius:16px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; box-shadow:0 8px 22px rgba(0,0,0,.28)}
+.toast ul{margin:0; padding-left:18px}
+.toast .row button{background:transparent; color:var(--bg); border:1px solid rgba(255,255,255,.45); border-radius:10px; padding:7px 12px; font-weight:700}
+.tomorrow{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; display:flex; flex-direction:column; gap:6px}
+.tomorrow h2{margin:0; font-size:13px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:700}
+.tomorrow ul{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:3px}
+.tomorrow li{display:flex; gap:10px; font-size:15px}
+.tomorrow li b{min-width:46px}
+.due{color:var(--warn); font-weight:700}
 .plist{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:15px}
 .plist li.miss{color:var(--warn)}
 textarea.field{resize:vertical; min-height:64px; font-family:inherit}
@@ -413,10 +436,6 @@ function removeRecurring(id){
 const MODEL_FILE = "vosk-model-small-ru-0.22.tar.gz";
 const VOICE = {model:null, rec:null, ctx:null, stream:null, node:null, src:null, state:"idle", base:"", final:"", partial:"", msg:""};
 function loadScript(src){ return new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("script")); document.head.appendChild(el); }); }
-function showVoiceText(){
-  const t = (VOICE.base + VOICE.final + (VOICE.partial ? (VOICE.final ? " " : "") + VOICE.partial : "")).replace(/\s+/g, " ").trim();
-  S.phraseText = t; const el = document.getElementById("phrase"); if (el) el.value = t;
-}
 function voiceCleanup(){
   try { VOICE.node && VOICE.node.disconnect(); } catch(e) {}
   try { VOICE.src && VOICE.src.disconnect(); } catch(e) {}
@@ -427,22 +446,23 @@ function voiceCleanup(){
 }
 async function voiceStart(){
   if (VOICE.state !== "idle") return;
+  S.toast = null; VOICE.msg = ""; VOICE.final = ""; VOICE.partial = ""; VOICE.base = "";
   if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.WebAssembly) {
-    VOICE.msg = "Этот браузер не умеет записывать с микрофона. Откройте приложение в Chrome."; render(); return;
+    VOICE.state = "error"; VOICE.msg = "Этот браузер не умеет записывать с микрофона. Откройте приложение в Chrome."; render(); return;
   }
   try {
-    if (!window.Vosk) { VOICE.state = "loading"; VOICE.msg = "Загружаю распознавание речи…"; render(); await loadScript("vosk.js"); }
+    VOICE.state = "loading";
+    if (!window.Vosk) { VOICE.msg = "Загружаю распознавание речи…"; render(); await loadScript("vosk.js"); }
     if (!VOICE.model) {
-      VOICE.state = "loading";
-      VOICE.msg = lsGet("voiceReady") ? "Готовлю распознавание…" : "Скачиваю модель речи (46 МБ, только в первый раз) — подождите 1–3 минуты…";
+      VOICE.msg = lsGet("voiceReady") ? "Готовлю распознавание…" : "Первый запуск: скачиваю модель речи (46 МБ) — подождите 1–3 минуты. Дальше голос работает без интернета.";
       render();
       VOICE.model = await window.Vosk.createModel(new URL(MODEL_FILE, location.href).href);
       lsSet("voiceReady", 1);
     }
+    if (VOICE.state !== "loading") return;                 // cancelled while loading
     VOICE.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, channelCount:1}, video:false});
     VOICE.ctx = new (window.AudioContext || window.webkitAudioContext)();
     const rec = new VOICE.model.KaldiRecognizer(VOICE.ctx.sampleRate);
-    VOICE.base = S.phraseText.trim() ? S.phraseText.trim() + ". " : ""; VOICE.final = ""; VOICE.partial = "";
     rec.on("result", m => { const t = (m && m.result && m.result.text) || ""; if (t) VOICE.final += (VOICE.final ? " " : "") + t; VOICE.partial = ""; showVoiceText(); });
     rec.on("partialresult", m => { VOICE.partial = (m && m.result && m.result.partial) || ""; showVoiceText(); });
     VOICE.rec = rec;
@@ -450,15 +470,32 @@ async function voiceStart(){
     VOICE.node = VOICE.ctx.createScriptProcessor(4096, 1, 1);
     VOICE.node.onaudioprocess = e => { try { rec.acceptWaveform(e.inputBuffer); } catch(err) {} };
     VOICE.src.connect(VOICE.node); VOICE.node.connect(VOICE.ctx.destination);
-    VOICE.state = "listening"; VOICE.msg = "Говорите… Когда закончите, нажмите «Стоп».";
-    S.phrase = null; render();
+    VOICE.state = "listening"; VOICE.msg = "";
+    render();
   } catch(e) {
-    voiceCleanup(); VOICE.state = "idle";
+    voiceCleanup(); VOICE.state = "error";
     VOICE.msg = (e && (e.name === "NotAllowedError" || e.name === "SecurityError"))
       ? "Нет доступа к микрофону. Разрешите микрофон для этого сайта: ⋮ → Настройки сайта → Микрофон."
-      : (lsGet("voiceReady") ? "Не получилось включить микрофон. Попробуйте ещё раз." : "Не получилось скачать модель речи. Нужен интернет при первом включении — попробуйте ещё раз.");
+      : (lsGet("voiceReady") ? "Не получилось включить микрофон. Попробуйте ещё раз." : "Не получилось скачать модель речи. При первом включении нужен интернет — попробуйте ещё раз.");
     render();
   }
+}
+function voiceText(){ return (VOICE.final + (VOICE.partial ? (VOICE.final ? " " : "") + VOICE.partial : "")).replace(/\s+/g, " ").trim(); }
+function voiceCancel(){ voiceCleanup(); VOICE.state = "idle"; VOICE.msg = ""; VOICE.final = ""; VOICE.partial = ""; render(); }
+function snapshotFor(actions){
+  const ids = new Set(["recurring"]);
+  for (const a of actions) { if (a.date) ids.add(dayId(a.date)); if (a.toDate) ids.add(dayId(a.toDate)); }
+  ids.add(dayId(S.date));
+  const snap = {}; for (const id of ids) snap[id] = lsGet(id);
+  return snap;
+}
+function undoSnapshot(snap){
+  for (const [id, d] of Object.entries(snap)) {
+    if (id === "recurring") store.save(id, d ? {items:cleanRecurring(d).items} : {items:[]});
+    else store.save(id, d ? {date:id.slice(4), tasks:(d.tasks || []).map(cleanTask).filter(Boolean), skip:cleanSkip(d.skip)} : {date:id.slice(4), tasks:[], skip:[]});
+  }
+  S.recurring = cleanRecurring(lsGet("recurring"));
+  const L = loadDay(S.date); S.tasks = L.tasks; S.skip = L.skip;
 }
 async function voiceStop(){
   if (VOICE.state !== "listening") return;
@@ -467,12 +504,23 @@ async function voiceStop(){
   try { VOICE.rec.retrieveFinalResult(); } catch(e) {}
   for (let i = 0; i < 15 && VOICE.final === finalBefore; i++) await new Promise(r => setTimeout(r, 100));
   if (VOICE.final === finalBefore && lastPartial) VOICE.final += (VOICE.final ? " " : "") + lastPartial;   // final result was late: keep what was heard
-  voiceCleanup(); VOICE.partial = ""; showVoiceText();
-  VOICE.state = "idle"; VOICE.msg = S.phraseText.trim() ? "" : "Не расслышала. Попробуйте говорить ближе к телефону.";
-  if (S.phraseText.trim()) S.phrase = parsePhrase(S.phraseText);
-  render();
-  const box = document.querySelector('[aria-label="Сказать одной фразой"]'); if (box && box.scrollIntoView) box.scrollIntoView({block:"start", behavior:"smooth"});
+  VOICE.partial = "";
+  const text = voiceText();
+  voiceCleanup(); VOICE.state = "idle"; VOICE.final = "";
+  if (!text) { VOICE.state = "error"; VOICE.msg = "Не расслышала. Нажмите «Сказать задачу» и говорите чуть ближе к телефону."; render(); return; }
+  const actions = parsePhrase(text);
+  const ok = actions.length && actions.every(a => a.type !== "miss");
+  if (ok) {
+    const snap = snapshotFor(actions);
+    const r = applyActions(actions);
+    S.toast = {lines:actions.map(describe).map(x => x.replace(/^Добавить: /, "")), undo:snap, date:r.firstDate, heard:text};
+    render();
+  } else {
+    S.phraseText = text; S.phrase = actions; render();
+    const box = document.querySelector('[aria-label="Сказать одной фразой"]'); if (box && box.scrollIntoView) box.scrollIntoView({block:"start", behavior:"smooth"});
+  }
 }
+function showVoiceText(){ const el = document.getElementById("live-text"); if (el) el.textContent = voiceText(); }
 
 /* ---------- one-phrase input (voice via the keyboard microphone, or typed) ---------- */
 const WEEKDAY_STEMS = [["воскресень",0],["понедельник",1],["вторник",2],["сред",3],["четверг",4],["пятниц",5],["суббот",6]];
@@ -591,10 +639,19 @@ function spokenToDigits(text){
   return t.trim();
 }
 
+const DEADLINE_RE = /(?:^|\s)(?:до|к|ко)\s+(послезавтр\S*|завтр\S*|понедельник\S*|вторник\S*|сред\S*|четверг\S*|пятниц\S*|суббот\S*|воскресень\S*)(?=\s|$)/;
+function takeDeadline(s){
+  const m = s.match(DEADLINE_RE); if (!m) return null;
+  const today = dkey(new Date()); let due;
+  if (/^послезавтр/.test(m[1])) due = addDays(today, 2);
+  else if (/^завтр/.test(m[1])) due = addDays(today, 1);
+  else { const wd = wdOf(m[1]); if (wd === null) return null; const diff = ((wd - new Date().getDay() + 7) % 7) || 7; due = addDays(today, diff); }
+  return {due, rest:s.replace(m[0], " ")};
+}
 function parsePhrase(text){
   let raw = spokenToDigits(String(text || "")).replace(/[«»"“”]/g, " ");
   raw = raw.replace(new RegExp("(" + WD + ")\\s*,\\s*(?=(?:и\\s+)?(?:(?:в|во|по)\\s+)?(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень))", "g"), "$1 и ");
-  const globalDate = takeDate(raw.replace(REC_RE, " ")).date;
+  const globalDate = takeDate(raw.replace(REC_RE, " ").replace(new RegExp(DEADLINE_RE.source, "g"), " ")).date;
   const clauses = raw.split(/\s*(?:[.;!?\n]+|,|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
   const actions = [];
   let ctxDate = globalDate || S.date;
@@ -615,6 +672,7 @@ function parsePhrase(text){
       actions.push({type:"rec", title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", days:rec.days});
       continue;
     }
+    const dl = takeDeadline(c); if (dl) c = dl.rest;
     const dt = takeDate(c); if (dt.date) { ctxDate = dt.date; c = dt.rest; }
     const isEdit = /^\s*(?:я\s+)?(?:удали|удалить|убери|убрать|отмени|отменить|вычеркни|перенеси|перенести|передвинь|сдвинь|переставь|перемести|сделала|выполнила|закончила|отметь)\s/.test(c) || /\s(?:сделала|сделано|готово|выполнено|выполнила|закончила)\s*$/.test(c);
     const date = isEdit ? (dt.date || S.date) : ctxDate;
@@ -644,13 +702,15 @@ function parsePhrase(text){
     const title = tidyTitle(c);
     if (!title) continue;
     const e = estimate(title);
-    actions.push({type:"add", date, title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", why:du.min ? "" : e.why});
+    let addDate = date;
+    if (dl && !dt.date) { const today = dkey(new Date()); const before = addDays(dl.due, -1); addDate = before < today ? today : before; }
+    actions.push({type:"add", date:addDate, title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", due:dl ? dl.due : "", why:du.min ? "" : e.why});
   }
   return actions;
 }
 function describe(a){
   const when = d => d === S.date ? "" : ` (${relLabel(d)})`;
-  if (a.type === "add") return `Добавить: ${a.title} — ${relLabel(a.date)}${a.fixed ? ", в " + a.fixed : ""}, ${dur(a.min)}${a.cat === "lesson" ? " + подготовка" : ""}`;
+  if (a.type === "add") return `Добавить: ${a.title} — ${relLabel(a.date)}${a.fixed ? ", в " + a.fixed : ""}, ${dur(a.min)}${a.due ? ", срок: " + relLabel(a.due) : ""}${a.cat === "lesson" ? " + подготовка" : ""}`;
   if (a.type === "move") return `Перенести: ${a.title}${when(a.date)} → ${a.toDate !== a.date ? relLabel(a.toDate) : ""}${a.toDate !== a.date && a.toTime ? ", " : ""}${a.toTime ? "в " + a.toTime : ""}`;
   if (a.type === "done") return `Отметить сделанным: ${a.title}${when(a.date)}`;
   if (a.type === "del") return `Удалить: ${a.title}${when(a.date)}`;
@@ -673,7 +733,8 @@ function applyActions(actions){
     if (a.type === "add") {
       const list = get(a.date);
       if (a.cat === "lesson") { const pe = estimate("Подготовка к занятию"); list.push({id:uid(), title:"Подготовка: " + a.title, cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false}); }
-      list.push({id:uid(), title:a.title, cat:safeCat(a.cat), min:r5(a.min), fixed:a.fixed || "", done:false});
+      const nt = {id:uid(), title:a.title, cat:safeCat(a.cat), min:r5(a.min), fixed:a.fixed || "", done:false}; if (a.due) nt.due = a.due;
+      list.push(nt);
       n++; firstDate = firstDate || a.date;
     } else if (a.type === "del") {
       const gone = get(a.date).find(t => t.id === a.id);
@@ -758,12 +819,14 @@ function estimate(title){
 function plural(n,a,b,c){ const m10=n%10, m100=n%100; return m10===1&&m100!==11?a:(m10>=2&&m10<=4&&(m100<10||m100>=20)?b:c); }
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const clampNum = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) && v !== "" && v !== null ? Math.max(lo, Math.min(hi, n)) : def; };
+const DATE_RE_T = /^\d{4}-\d{2}-\d{2}$/;
 function cleanTask(t){
   if (!t || typeof t !== "object") return null;
   const id = String(t.id || "").replace(/[^a-z0-9]/gi, "").slice(0, 16) || uid();
   const out = {id, title:String(t.title || "").slice(0, 200), cat:safeCat(t.cat),
     min:r5(clampNum(t.min, 5, 600, 30)), fixed:TIME_RE.test(t.fixed) ? t.fixed : "", done:!!t.done};
   if (Number(t.actual) > 0) out.actual = Math.min(600, Math.round(Number(t.actual)));
+  if (DATE_RE_T.test(t.due)) out.due = t.due;
   const rid = String(t.rid || "").replace(/[^a-z0-9]/gi, "").slice(0, 20);
   if (rid) { out.rid = rid; if (t.custom) out.custom = true; }
   return out;
@@ -972,6 +1035,7 @@ const ICON = {
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   tick:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
   up:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>',
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>',
   down:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>'
 };
 
@@ -1010,7 +1074,7 @@ function render(){
         <button class="tick" data-act="done" data-id="${esc(t.id)}" aria-label="${t.done?"Отметить как не сделано":"Отметить как сделано"}">${ICON.tick}</button>
         <div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0">
           <div class="t">${esc(t.title)}</div>
-          <div class="m"><span>${esc(CATS[t.cat]?.short || "Другое")}</span><span class="num">${dur(t.min)}</span>${t.fixed?`<span class="pin">в ${esc(t.fixed)}</span>`:""}${t.rid?`<span title="Постоянное дело">↻ постоянное</span>`:""}${t.actual?`<span class="num">факт ${dur(t.actual)}</span>`:""}${clash?`<span style="color:var(--warn);font-weight:700">пересекается</span>`:""}</div>
+          <div class="m"><span>${esc(CATS[t.cat]?.short || "Другое")}</span><span class="num">${dur(t.min)}</span>${t.fixed?`<span class="pin">в ${esc(t.fixed)}</span>`:""}${t.rid?`<span title="Постоянное дело">↻ постоянное</span>`:""}${t.due?`<span class="due">срок: ${esc(relLabel(t.due))}</span>`:""}${t.actual?`<span class="num">факт ${dur(t.actual)}</span>`:""}${clash?`<span style="color:var(--warn);font-weight:700">пересекается</span>`:""}</div>
           ${S.askingDone===t.id ? `<div class="actual" data-stop="1">Сколько заняло? <input id="act-${esc(t.id)}" type="number" inputmode="numeric" min="1" max="600" value="${Number(t.min)||30}" aria-label="Минут на самом деле"> мин
              <button class="ghost" data-act="actual" data-id="${esc(t.id)}">Сохранить</button><button class="linkbtn" data-act="skipactual">Не важно</button></div>` : ""}
         </div>
@@ -1024,7 +1088,7 @@ function render(){
   const overHtml = plan.over.map(t => `<div class="blk over"><div class="when"></div><div class="card"><span class="dot" style="background:${color(t.cat)}"></span><div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><div class="t">${esc(t.title)}</div><div class="m"><span>${esc(CATS[t.cat]?.short||"Другое")}</span><span class="num">${dur(t.min)}</span></div></div></div></div>`).join("");
 
   const empty = !S.tasks.length ? `<div class="empty"><b>На ${S.date===today?"сегодня":"этот день"} пока ничего нет</b>
-      <p>Напишите задачу в поле выше — например «занятие с Мишей в 10:00» или «пост в ВК» — и приложение предложит, сколько времени на неё заложить. Или нажмите готовую кнопку из списка.</p>
+      <p>Нажмите большую кнопку «Сказать задачу» внизу и скажите, например: «завтра в десять занятие с Мишей» или «до пятницы сделать пособие». Приложение само поставит задачу на нужный день и время.</p>
       <button class="linkbtn" data-act="example">Показать пример дня</button></div>` : "";
 
   const leftCount = S.tasks.filter(t => !t.done).length;
@@ -1050,22 +1114,19 @@ function render(){
   </header>
 
   ${S.flash?`<div class="notes"><div class="note good">${esc(S.flash)}</div></div>`:""}
+  ${tomorrowCard()}
 
   <section class="add" aria-label="Сказать одной фразой">
-    <label class="big" for="phrase">Сказать одной фразой</label>
-    <textarea id="phrase" class="field" rows="2" placeholder="Нажмите «Говорить» и скажите, например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
+    <label class="big" for="phrase">Написать одной фразой</label>
+    <textarea id="phrase" class="field" rows="2" placeholder="Например: «завтра в 10 занятие с Мишей, потом пост в ВК». Голосом — большая кнопка внизу">${esc(S.phraseText)}</textarea>
     ${S.tasks.length > 3 ? "" : `<div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>`}
     ${S.phrase ? `<div class="suggest" aria-live="polite">
       ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
       <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
       : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
     </div>` : `<div class="row">
-      ${VOICE.state === "listening" ? `<button class="primary rec" data-act="voicestop">■ Стоп</button>`
-        : `<button class="ghost mic" data-act="voice" ${VOICE.state !== "idle" ? "disabled" : ""}>${VOICE.state === "idle" ? "🎤 Говорить" : "⏳ Подождите…"}</button>`}
-      <button class="primary" data-act="parse" ${VOICE.state !== "idle" ? "disabled" : ""}>Разобрать фразу</button>
-      ${S.phraseText.trim() && VOICE.state === "idle" ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>
-      ${VOICE.msg ? `<div class="why" aria-live="polite">${esc(VOICE.msg)}</div>` : ""}
-      ${!lsGet("voiceReady") && VOICE.state === "idle" ? `<div class="why">При первом нажатии «Говорить» скачается модель речи 46 МБ — лучше по Wi-Fi. Голос распознаётся прямо в телефоне и никуда не отправляется.</div>` : ""}`}
+      <button class="primary" data-act="parse">Разобрать фразу</button>
+      ${S.phraseText.trim() ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>`}
   </section>
 
   ${A.notes.length?`<div class="notes">${A.notes.map(n => `<div class="note${n.warn?"":" good"}">${esc(n.text)}</div>`).join("")}</div>`:""}
@@ -1105,6 +1166,18 @@ function render(){
     <button class="ghost" data-act="settings">${ICON.gear.replace("<svg","<svg width='16' height='16' style='vertical-align:-3px;margin-right:6px'")}Настройки дня</button>
     <div class="store">${esc(storeNote)}</div>
   </footer>
+  ${VOICE.state === "idle" && !S.editing && !S.showSettings ? `<button class="fab" data-act="voice" aria-label="Сказать задачу голосом">${ICON.mic}<span>Сказать задачу</span></button>` : ""}
+  ${S.toast && VOICE.state === "idle" ? `<div class="toast" role="status"><b>Добавлено в план:</b><ul>${S.toast.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
+    <div class="row">${S.toast.date && S.toast.date !== S.date ? `<button data-act="toastopen">Открыть ${esc(relLabel(S.toast.date))}</button>` : ""}<button data-act="toastundo">Отменить</button><button data-act="toastclose" aria-label="Закрыть">✕</button></div></div>` : ""}
+  ${VOICE.state !== "idle" ? `<div class="listen" role="dialog" aria-label="Голосовой ввод">
+    <h3>${VOICE.state === "listening" ? `<span class="pulse"></span>Говорите…` : VOICE.state === "error" ? "Не получилось" : "Подождите…"}</h3>
+    ${VOICE.state === "listening" || VOICE.state === "finishing" ? `<div class="live" id="live-text" aria-live="polite">${esc(voiceText())}</div>
+      <div class="why">Например: «завтра в десять занятие с Мишей», «до пятницы сделать пособие», «каждую среду в пять занятие с Аней».</div>` : ""}
+    ${VOICE.msg ? `<div class="why" aria-live="polite">${esc(VOICE.msg)}</div>` : ""}
+    <div class="row">${VOICE.state === "listening" ? `<button class="primary big" data-act="voicestop" style="flex:1">Готово</button>` : ""}
+      ${VOICE.state === "error" ? `<button class="primary big" data-act="voice" style="flex:1">Попробовать ещё раз</button>` : ""}
+      <button class="ghost big" data-act="voicecancel">${VOICE.state === "error" ? "Закрыть" : "Отмена"}</button></div>
+  </div>` : ""}
   ${S.editing ? editSheet() : ""}
   ${S.showSettings ? settingsSheet() : ""}`;
 
@@ -1112,6 +1185,24 @@ function render(){
   if (S.askingDone) { const el = document.getElementById("act-"+S.askingDone); el && el.focus({preventScroll:true}); }
 }
 
+function tomorrowCard(){
+  const today = dkey(new Date());
+  if (S.date !== today) return "";
+  const tmr = addDays(today, 1);
+  const list = loadDay(tmr).tasks.filter(t => !t.done);
+  const dueSoon = S.tasks.filter(t => !t.done && t.due && t.due <= tmr);
+  if (!list.length && !dueSoon.length) return "";
+  const sorted = [...list.filter(t => t.fixed).sort((a, b) => a.fixed < b.fixed ? -1 : 1), ...list.filter(t => !t.fixed)];
+  const shown = sorted.slice(0, 5);
+  const label = fromKey(tmr).toLocaleDateString("ru-RU", {weekday:"long", day:"numeric", month:"long"});
+  return `<section class="tomorrow" aria-label="Завтра">
+    ${dueSoon.length ? `<div class="note" style="margin:0"><span><b>До завтра нужно сделать:</b> ${dueSoon.map(t => esc(t.title)).join(", ")}</span></div>` : ""}
+    ${list.length ? `<h2>Завтра, ${esc(label)} · ${list.length} ${plural(list.length, "дело", "дела", "дел")}</h2>
+    <ul>${shown.map(t => `<li><b class="num">${t.fixed ? esc(t.fixed) : "—"}</b><span>${esc(t.title)}${t.due ? ` <span class="due">срок: ${esc(relLabel(t.due))}</span>` : ""}</span></li>`).join("")}</ul>
+    ${sorted.length > shown.length ? `<div class="why">и ещё ${sorted.length - shown.length}</div>` : ""}
+    <div class="row"><button class="linkbtn" data-act="next">Открыть завтра →</button></div>` : ""}
+  </section>`;
+}
 function editSheet(){
   const t = S.tasks.find(x => x.id === S.editing); if (!t) { S.editing = null; return ""; }
   return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Изменить задачу" data-stop="1">
@@ -1223,6 +1314,7 @@ document.addEventListener("click", e => {
   if (el.dataset.act === "edit" && stopper && stopper !== el && el.contains(stopper)) return; // click inside "actual" form
   const act = el.dataset.act, id = el.dataset.id;
   if (act !== "add") S.flash = "";
+  if (!/^toast|^voice/.test(act) && act !== "toastundo") S.toast = null;
   switch (act) {
     case "prev": goDate(addDays(S.date,-1)); break;
     case "next": goDate(addDays(S.date,1)); break;
@@ -1269,8 +1361,12 @@ document.addEventListener("click", e => {
     case "restore": doRestore(); break;
     case "example": fillExample(); break;
     case "parse": S.phrase = parsePhrase(S.phraseText); render(); break;
-    case "voice": voiceStart(); break;
+    case "voice": if (VOICE.state === "error") VOICE.state = "idle"; voiceStart(); break;
     case "voicestop": voiceStop(); break;
+    case "voicecancel": voiceCancel(); break;
+    case "toastundo": if (S.toast) { undoSnapshot(S.toast.undo); S.toast = null; S.flash = "Отменено."; } render(); break;
+    case "toastclose": S.toast = null; render(); break;
+    case "toastopen": { const d = S.toast && S.toast.date; S.toast = null; if (d) goDate(d); else render(); break; }
     case "cancelphrase": S.phrase = null; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
     case "clearphrase": S.phrase = null; S.phraseText = ""; VOICE.msg = ""; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
     case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = "";
