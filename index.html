@@ -580,7 +580,8 @@ function parsePhrase(text){
       continue;
     }
     const dt = takeDate(c); if (dt.date) { ctxDate = dt.date; c = dt.rest; }
-    const date = ctxDate;
+    const isEdit = /^\s*(?:я\s+)?(?:удали|удалить|убери|убрать|отмени|отменить|вычеркни|перенеси|перенести|передвинь|сдвинь|переставь|перемести|сделала|выполнила|закончила|отметь)\s/.test(c) || /\s(?:сделала|сделано|готово|выполнено|выполнила|закончила)\s*$/.test(c);
+    const date = isEdit ? (dt.date || S.date) : ctxDate;
     let m;
     if ((m = c.match(/^\s*(?:удали|удалить|убери|убрать|отмени|отменить|вычеркни)\s+(.+)$/))) {
       const t = findTask(dayTasks(date), m[1]);
