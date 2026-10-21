@@ -1197,7 +1197,7 @@ function tomorrowCard(){
   const label = fromKey(tmr).toLocaleDateString("ru-RU", {weekday:"long", day:"numeric", month:"long"});
   return `<section class="tomorrow" aria-label="Завтра">
     ${dueSoon.length ? `<div class="note" style="margin:0"><span><b>До завтра нужно сделать:</b> ${dueSoon.map(t => esc(t.title)).join(", ")}</span></div>` : ""}
-    ${list.length ? `<h2>Завтра, ${esc(label)} · ${list.length} ${plural(list.length, "дело", "дела", "дел")}</h2>
+    ${list.length ? `<h2>Завтра, ${esc(label)} · ${Number(list.length)} ${plural(list.length, "дело", "дела", "дел")}</h2>
     <ul>${shown.map(t => `<li><b class="num">${t.fixed ? esc(t.fixed) : "—"}</b><span>${esc(t.title)}${t.due ? ` <span class="due">срок: ${esc(relLabel(t.due))}</span>` : ""}</span></li>`).join("")}</ul>
     ${sorted.length > shown.length ? `<div class="why">и ещё ${sorted.length - shown.length}</div>` : ""}
     <div class="row"><button class="linkbtn" data-act="next">Открыть завтра →</button></div>` : ""}
