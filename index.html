@@ -797,20 +797,37 @@ function schedule(){
   // today: what is done stays from the morning, what is left is planned from now on
   const isToday = S.date === dkey(new Date());
   const now = isToday ? Math.ceil((new Date().getHours()*60 + new Date().getMinutes())/5)*5 : -1;
-  const order = isToday ? [...flex.filter(t => t.done), ...flex.filter(t => !t.done)] : flex;
+  // a preparation task belongs before its lesson: same recurring id + "p", or "Подготовка: <lesson title>"
+  const lessonOf = t => {
+    if (t.rid && t.rid.endsWith("p")) { const l = S.tasks.find(x => x.rid === t.rid.slice(0, -1) && x.fixed); if (l) return l; }
+    const m = /^подготовка:\s*(.+)$/i.exec(t.title);
+    return m ? S.tasks.find(x => x.fixed && x.cat === "lesson" && norm(x.title) === norm(m[1])) : null;
+  };
+  const deadline = new Map();
+  for (const t of flex) { const l = lessonOf(t); if (l) deadline.set(t.id, toMin(l.fixed) - gap); }
+  const byDeadline = (a, b) => (deadline.has(a.id) ? deadline.get(a.id) : 1e9) - (deadline.has(b.id) ? deadline.get(b.id) : 1e9);
+  const undone = flex.filter(t => !t.done);
+  const order = isToday
+    ? [...flex.filter(t => t.done), ...undone.filter(t => deadline.has(t.id)).sort(byDeadline), ...undone.filter(t => !deadline.has(t.id))]
+    : [...flex.filter(t => deadline.has(t.id)).sort(byDeadline), ...flex.filter(t => !deadline.has(t.id))];
+  const late = new Set();
   for (const t of order) {
     const from = (isToday && !t.done) ? now : -1;
-    const w = free.find(w => Math.min(w.e, end) - Math.max(w.s, from) >= t.min && w.e - w.s >= t.min);
+    const dl = (!t.done && deadline.has(t.id)) ? deadline.get(t.id) : null;
+    let w = dl !== null ? free.find(w => Math.min(w.e, end, dl) - Math.max(w.s, from) >= t.min) : null;
+    if (!w) { w = free.find(w => Math.min(w.e, end) - Math.max(w.s, from) >= t.min && w.e - w.s >= t.min); if (w && dl !== null) late.add(t.id); }
     if (!w) { over.push(t); continue; }
     const s = Math.max(w.s, from);
     placed.push({t, s, e:s + t.min, fixed:false});
+    if (s > w.s) free.push({s:w.s, e:s - gap});            // keep the part of the window before the task usable
     w.s = s + t.min + tail(t);
   }
+  free.sort((a, b) => a.s - b.s);
   placed.sort((a,b) => a.s - b.s || (a.fixed ? -1 : 1));
   // overlaps between fixed tasks
   const clash = new Set();
   for (let i = 1; i < fixed.length; i++) if (fixed[i].s < fixed[i-1].e) { clash.add(fixed[i].t.id); clash.add(fixed[i-1].t.id); }
-  return {placed, over, clash, start, end};
+  return {placed, over, clash, late, start, end};
 }
 
 function analyse(plan){
@@ -818,13 +835,15 @@ function analyse(plan){
   const total = S.tasks.reduce((a,t) => a + t.min, 0);
   const avail = plan.end - plan.start;
   if (plan.over.length) notes.push({warn:true, text:`Не помещается: ${plan.over.length} ${plural(plan.over.length,"задача","задачи","задач")} на ${dur(plan.over.reduce((a,t)=>a+t.min,0))}. Перенесите на другой день или сократите время.`});
+  if (plan.late && plan.late.size) notes.push({warn:true, text:"Подготовка к занятию не помещается до его начала — освободите время утром или перенесите подготовку на вчерашний вечер."});
   if (plan.clash.size) notes.push({warn:true, text:"Задачи с точным временем пересекаются — проверьте отмеченные."});
   const work = S.tasks.filter(t => !["rest","home"].includes(t.cat)).reduce((a,t)=>a+t.min,0);
   const rest = S.tasks.filter(t => t.cat === "rest").reduce((a,t)=>a+t.min,0);
   if (total >= 240 && rest === 0) notes.push({warn:true, text:"В плане нет отдыха. Добавьте хотя бы 20–30 минут — прогулку или чай."});
   // long stretch without a break
   let runS = null, runE = null, longest = 0, longestAt = null;
-  for (const p of plan.placed) {
+  const nowM = S.date === dkey(new Date()) ? new Date().getHours()*60 + new Date().getMinutes() : -1;
+  for (const p of plan.placed.filter(p => p.e > nowM && !p.t.done)) {
     if (p.t.cat === "rest") { runS = null; continue; }
     if (runS !== null && p.s - runE <= 15) { runE = Math.max(runE, p.e); }
     else { runS = p.s; runE = p.e; }
@@ -999,7 +1018,7 @@ function render(){
   <section class="add" aria-label="Сказать одной фразой">
     <label class="big" for="phrase">Сказать одной фразой</label>
     <textarea id="phrase" class="field" rows="2" placeholder="Нажмите «Говорить» и скажите, например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
-    <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>
+    ${S.tasks.length > 3 ? "" : `<div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>`}
     ${S.phrase ? `<div class="suggest" aria-live="polite">
       ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
       <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Отмена</button></div>`
@@ -1012,8 +1031,18 @@ function render(){
       ${!lsGet("voiceReady") && VOICE.state === "idle" ? `<div class="why">При первом нажатии «Говорить» скачается модель речи 46 МБ — лучше по Wi-Fi. Голос распознаётся прямо в телефоне и никуда не отправляется.</div>` : ""}`}
   </section>
 
+  ${A.notes.length?`<div class="notes">${A.notes.map(n => `<div class="note${n.warn?"":" good"}">${esc(n.text)}</div>`).join("")}</div>`:""}
+
+  <section class="sec" aria-label="План дня">
+    <h2>План дня</h2>
+    ${empty}
+    <div class="tl">${tl}</div>
+  </section>
+
+  ${plan.over.length?`<section class="sec"><h2>Не помещается в день</h2><div class="tl">${overHtml}</div></section>`:""}
+
   <section class="add" aria-label="Новая задача">
-    <label class="big" for="title">Что нужно сделать?</label>
+    <label class="big" for="title">Добавить задачу вручную</label>
     <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
     ${d.title.trim() ? `<div class="suggest">
       <div class="estimate">
@@ -1033,16 +1062,6 @@ function render(){
     <h2>Быстро добавить</h2>
     <div class="chips">${PRESETS.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p[1])}"></i>${esc(p[0])}</b><span class="num">${dur(estimate(p[0]).min)}</span></button>`).join("")}</div>
   </section>
-
-  ${A.notes.length?`<div class="notes">${A.notes.map(n => `<div class="note${n.warn?"":" good"}">${esc(n.text)}</div>`).join("")}</div>`:""}
-
-  <section class="sec" aria-label="План дня">
-    <h2>План дня</h2>
-    ${empty}
-    <div class="tl">${tl}</div>
-  </section>
-
-  ${plan.over.length?`<section class="sec"><h2>Не помещается в день</h2><div class="tl">${overHtml}</div></section>`:""}
 
   <footer>
     ${leftCount && S.tasks.length ? `<button class="ghost" data-act="carry">Перенести невыполненное на завтра (${Number(leftCount)})</button>` : ""}
