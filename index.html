@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>День Виктории</title>
+<meta name="description" content="Планировщик рабочего дня: занятия, подготовка, блог, дом и отдых. Работает без интернета, данные хранятся только на телефоне.">
+<meta name="theme-color" content="#17766B">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0} [hidden]{display:none!important} img{max-width:100%}
+</style>
+</head>
+<body>
+<style>
+/* Layout: one-column phone planner — sticky day header, add box, timeline of blocks with free gaps */
+:root{
+  --bg:#F3F6F5; --surface:#FFFFFF; --surface-2:#E9EFED; --ink:#1C2A2B; --muted:#5E6E70; --line:#D6DFDD;
+  --accent:#17766B; --accent-ink:#FFFFFF; --warn:#B4541E; --warn-bg:#FBEDE3; --ok:#2F7D3B;
+  --c-lesson:#17766B; --c-prep:#C88A12; --c-work:#6C5BC4; --c-blog:#2787F5; --c-home:#D45A4A; --c-rest:#4E9A4E; --c-other:#7A8790;
+  --f-display:"Segoe UI", Roboto, "Google Sans", system-ui, -apple-system, sans-serif;
+  --f-body:system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111819; --surface:#1A2426; --surface-2:#223033; --ink:#E6EEEC; --muted:#9AAAAC; --line:#2E3D40;
+  --accent:#3FB3A3; --accent-ink:#0D1A19; --warn:#F0A070; --warn-bg:#3A2619; --ok:#7CC487;
+  --c-lesson:#3FB3A3; --c-prep:#E3AE42; --c-work:#9E90F0; --c-blog:#5AA6FF; --c-home:#F07D6E; --c-rest:#78C178; --c-other:#9AA7B0;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#111819; --surface:#1A2426; --surface-2:#223033; --ink:#E6EEEC; --muted:#9AAAAC; --line:#2E3D40;
+  --accent:#3FB3A3; --accent-ink:#0D1A19; --warn:#F0A070; --warn-bg:#3A2619; --ok:#7CC487;
+  --c-lesson:#3FB3A3; --c-prep:#E3AE42; --c-work:#9E90F0; --c-blog:#5AA6FF; --c-home:#F07D6E; --c-rest:#78C178; --c-other:#9AA7B0;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{color:var(--ink); font-family:var(--f-body); font-size:16px; line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:0 40px}
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--bg)}
+.wrap{max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
+button,input,select{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--bg); padding-block:14px 10px; display:flex; flex-direction:column; gap:10px}
+.dayrow{display:flex; align-items:center; gap:8px}
+.dayrow h1{flex:1; min-width:0; margin:0; font-family:var(--f-display); font-weight:600; font-size:clamp(19px,5.4vw,24px); line-height:1.2; text-wrap:balance}
+.dayrow h1 small{display:block; font-family:var(--f-body); font-weight:600; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+.iconbtn{width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:var(--surface); display:grid; place-items:center; flex:none}
+.iconbtn svg{width:18px; height:18px}
+.todaybtn{border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:8px 12px; font-size:14px; font-weight:600}
+.load{display:flex; flex-direction:column; gap:6px}
+.loadtext{display:flex; justify-content:space-between; gap:10px; font-size:14px; color:var(--muted); flex-wrap:wrap}
+.loadtext b{color:var(--ink)}
+.bar{display:flex; height:10px; border-radius:999px; overflow:hidden; background:var(--surface-2)}
+.bar span{display:block; height:100%}
+.legend{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12.5px; color:var(--muted)}
+.legend i{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:1px}
+
+/* notices */
+.notes{display:flex; flex-direction:column; gap:8px}
+.note{background:var(--warn-bg); color:var(--ink); border-radius:12px; padding:10px 12px; font-size:14px; display:flex; gap:10px; align-items:flex-start}
+.note::before{content:""; flex:none; width:8px; height:8px; margin-top:7px; border-radius:50%; background:var(--warn)}
+.note.good{background:var(--surface-2)}
+.note.good::before{background:var(--ok)}
+
+/* add */
+.add{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px; display:flex; flex-direction:column; gap:12px}
+.add label.big{font-weight:700; font-size:15px}
+.field{width:100%; border:1px solid var(--line); background:var(--bg); border-radius:10px; padding:11px 12px; font-size:16px}
+.suggest{display:flex; flex-direction:column; gap:10px}
+.estimate{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.estimate .mins{font-family:var(--f-display); font-weight:600; font-size:22px; min-width:3.6em}
+.why{font-size:13.5px; color:var(--muted)}
+.step{border:1px solid var(--line); background:var(--bg); border-radius:999px; padding:6px 11px; font-size:14px; font-weight:600}
+.cats{display:flex; flex-wrap:wrap; gap:6px}
+.cat{border:1px solid var(--line); background:transparent; border-radius:999px; padding:6px 11px 6px 9px; font-size:14px; display:inline-flex; align-items:center; gap:6px}
+.cat i{width:9px; height:9px; border-radius:50%}
+.cat[aria-pressed="true"]{background:var(--surface-2); border-color:var(--ink); font-weight:700}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.row label{font-size:14px; color:var(--muted)}
+.time{border:1px solid var(--line); background:var(--bg); border-radius:10px; padding:8px 10px; font-size:15px}
+.primary{background:var(--accent); color:var(--accent-ink); border:0; border-radius:12px; padding:12px 16px; font-weight:700; font-size:16px}
+.ghost{background:transparent; border:1px solid var(--line); border-radius:12px; padding:10px 14px; font-weight:600; font-size:14px}
+.linkbtn{background:none; border:0; padding:4px 0; color:var(--accent); font-weight:700; font-size:14px; text-align:left}
+.check{display:flex; gap:8px; align-items:center; font-size:14px}
+.check input{width:18px; height:18px; accent-color:var(--accent)}
+.ai{font-size:13.5px; color:var(--muted)}
+
+/* presets */
+.presets{display:flex; flex-direction:column; gap:8px}
+.presets h2, .sec h2{margin:0; font-size:13px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:700}
+.chips{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin}
+.chip{flex:none; border:1px solid var(--line); background:var(--surface); border-radius:12px; padding:8px 11px; font-size:14px; text-align:left; display:flex; flex-direction:column; gap:1px}
+.chip b{font-weight:600}
+.chip span{font-size:12.5px; color:var(--muted)}
+.chip i{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px}
+
+/* timeline */
+.sec{display:flex; flex-direction:column; gap:8px}
+.tl{display:flex; flex-direction:column; gap:6px}
+.blk{display:grid; grid-template-columns:54px 1fr; gap:10px; align-items:stretch}
+.when{font-size:14px; font-weight:700; padding-top:12px; text-align:right}
+.when small{display:block; font-weight:500; color:var(--muted); font-size:12px}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:10px 10px 10px 12px; display:flex; gap:10px; align-items:flex-start; min-width:0}
+.card .dot{width:10px; height:10px; border-radius:50%; margin-top:8px; flex:none}
+.card .body{flex:1; min-width:0}
+.card .t{font-weight:600; overflow-wrap:anywhere}
+.card .m{font-size:13px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; margin-top:2px}
+.pin{font-weight:700; color:var(--ink)}
+.done .t{text-decoration:line-through; color:var(--muted)}
+.done{opacity:.75}
+.tick{width:30px; height:30px; flex:none; border-radius:50%; border:2px solid var(--line); background:transparent; display:grid; place-items:center; margin-top:2px}
+.tick svg{width:16px; height:16px; opacity:0}
+.done .tick{background:var(--accent); border-color:var(--accent)}
+.done .tick svg{opacity:1; color:var(--accent-ink)}
+.moves{display:flex; flex-direction:column; gap:2px}
+.moves button{width:30px; height:26px; border:0; background:transparent; color:var(--muted); border-radius:8px}
+.moves button:disabled{opacity:.25}
+.gap{display:grid; grid-template-columns:54px 1fr; gap:10px}
+.gap div:last-child{border:1px dashed var(--line); border-radius:12px; padding:6px 12px; font-size:13px; color:var(--muted)}
+.now{display:grid; grid-template-columns:54px 1fr; gap:10px; align-items:center; color:var(--warn); font-size:12px; font-weight:700}
+.now div:last-child{height:2px; background:var(--warn); border-radius:2px}
+.actual{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:14px}
+.actual input{width:70px; border:1px solid var(--line); background:var(--bg); border-radius:8px; padding:6px 8px}
+.empty{background:var(--surface); border:1px dashed var(--line); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:10px}
+.empty p{margin:0; color:var(--muted)}
+.over .card{border-style:dashed}
+
+/* sheet */
+.scrim{position:fixed; inset:0; background:rgba(10,20,20,.45); z-index:20; display:flex; align-items:flex-end; justify-content:center}
+.sheet{background:var(--surface); width:100%; max-width:560px; border-radius:18px 18px 0 0; padding:18px max(16px, env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px)); display:flex; flex-direction:column; gap:12px; max-height:92%; overflow:auto}
+.sheet h3{margin:0; font-family:var(--f-display); font-weight:600; font-size:18px}
+.sheet .actions{display:flex; gap:8px; justify-content:space-between; flex-wrap:wrap}
+.danger{color:var(--warn); border-color:var(--warn)}
+.settings{display:grid; grid-template-columns:1fr auto; gap:10px 12px; align-items:center; font-size:15px}
+.store{font-size:13.5px; color:var(--muted)}
+footer{display:flex; flex-direction:column; gap:10px}
+@media (prefers-reduced-motion: no-preference){ .tick, .cat, .chip{transition:background .15s, border-color .15s} }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+(() => {
+const CATS = {
+  lesson:{name:"Занятия", short:"Занятие"},
+  prep:{name:"Подготовка", short:"Подготовка"},
+  work:{name:"Родители и отчёты", short:"Работа"},
+  blog:{name:"Блог ВК", short:"Блог"},
+  home:{name:"Дом", short:"Дом"},
+  rest:{name:"Отдых", short:"Отдых"},
+  other:{name:"Другое", short:"Другое"}
+};
+const CAT_ORDER = ["lesson","prep","work","blog","home","rest","other"];
+const PRESETS = [
+  ["Занятие с ребёнком","lesson",45], ["Подготовка к занятию","prep",20], ["Сделать пособие","prep",60],
+  ["Консультация родителей","work",30], ["Записи после занятий","work",20],
+  ["Пост в ВК","blog",60], ["Сторис","blog",15], ["Ответить на комментарии","blog",20],
+  ["Приготовить обед","home",60], ["Уборка","home",45], ["Магазин","home",45],
+  ["Прогулка","rest",45], ["Отдых, чай","rest",20]
+];
+const RULES = [
+  [/диагност/, "work", 60, "диагностика обычно занимает около часа"],
+  [/(консульт|родител|созвон|звонок|встреч)/, "work", 30, "разговор с родителями"],
+  [/(отч[её]т|документ|заключени|характеристик|журнал)/, "work", 40, "работа с документами"],
+  [/сторис/, "blog", 15, "сторис — короткий формат"],
+  [/(видео|reels|рилс|ролик|монтаж)/, "blog", 90, "видео с монтажом"],
+  [/(комментар|директ)/, "blog", 20, "ответы подписчикам"],
+  [/(пост(\s|$|[аыуо])|(^|\s)вк(\s|$|[.,!?:])|вконтакт|блог|стать|публикац|контент)/, "blog", 60, "текст, картинка и публикация"],
+  [/(подгот|материал|карточк|распечат|ламин|пособи|конспект|рабоч\S* лист)/, "prep", 30, "подготовка материалов"],
+  [/(заняти|урок|сесси|коррекц|логопед|ребен|ребён|ученик)/, "lesson", 45, "одно занятие"],
+  [/завтрак/, "home", 20, "завтрак"],
+  [/(готов|обед|ужин|суп|выпеч|пирог)/, "home", 60, "готовка"],
+  [/посуд/, "home", 15, "посуда"],
+  [/(стирк|постир|бель[её])/, "home", 15, "загрузить и развесить"],
+  [/глаж/, "home", 40, "глажка"],
+  [/(убор|пылесос|(^|\s)пол(ы)?(\s|$)|порядок|пыль)/, "home", 45, "уборка"],
+  [/(магазин|продукт|покуп|рынок)/, "home", 45, "дорога и покупки"],
+  [/прогул/, "rest", 45, "прогулка"],
+  [/(спорт|трениров|йог|зарядк|бассейн)/, "rest", 60, "тренировка"],
+  [/(отдых|кофе|(^|\s)чай|книг|чита|сериал|фильм|ванн|поспать|медит)/, "rest", 30, "отдых"]
+];
+const DEFAULT_SETTINGS = {dayStart:"08:00", dayEnd:"21:00", gap:5, afterLesson:10};
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const toMin = t => { if(!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; };
+const hhmm = m => { m = Math.max(0, Math.round(m)); const h = Math.floor(m/60)%24, mm = m%60; return String(h).padStart(2,"0")+":"+String(mm).padStart(2,"0"); };
+const dur = m => { m = Math.round(m); const h = Math.floor(m/60), mm = m%60; return h ? (mm ? `${h} ч ${mm} мин` : `${h} ч`) : `${mm} мин`; };
+const r5 = m => Math.max(5, Math.round(m/5)*5);
+const dkey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const fromKey = k => { const [y,m,d] = k.split("-").map(Number); return new Date(y, m-1, d); };
+const addDays = (k, n) => { const d = fromKey(k); d.setDate(d.getDate()+n); return dkey(d); };
+const norm = s => String(s).toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9\s]/g," ").replace(/\s+/g," ").trim().slice(0,60);
+const uid = () => Math.random().toString(36).slice(2,10);
+const safeCat = c => (Object.prototype.hasOwnProperty.call(CATS, c) ? c : "other");
+const color = c => `var(--c-${safeCat(c)})`;
+
+/* ---------- storage: claude db (per-person, private) with local fallback ---------- */
+const LSP = "den-viktorii:";
+const lsGet = k => { try { const v = localStorage.getItem(LSP+k); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(LSP+k, JSON.stringify(v)); } catch(e) {} };
+const store = {
+  mode:"local", col:null, watchers:{}, unsub:{}, writing:{}, pending:{}, migrated:{}, failed:false,
+  watch(id, cb){ this.watchers[id] = cb; cb(lsGet(id)); if (this.mode === "db") this.sub(id); },
+  unwatch(id){ delete this.watchers[id]; if (this.unsub[id]) { this.unsub[id](); delete this.unsub[id]; } },
+  sub(id){
+    if (this.unsub[id]) this.unsub[id]();
+    this.unsub[id] = this.col.doc(id).onSnapshot(snap => {
+      if (snap.exists) { const d = snap.data(); lsSet(id, d); this.watchers[id] && this.watchers[id](d); }
+      else { const local = lsGet(id); if (local && !this.migrated[id]) { this.migrated[id] = 1; this.save(id, local); } else this.watchers[id] && this.watchers[id](null); }
+    }, () => {});
+  },
+  async save(id, data){
+    lsSet(id, data);
+    if (this.mode !== "db") return;
+    if (this.writing[id]) { this.pending[id] = data; return; }
+    this.writing[id] = true;
+    try { await this.col.doc(id).set(JSON.parse(JSON.stringify(data))); }
+    catch(e) { if (e && e.code === "invalid_argument") { this.failed = true; this.mode = "local"; render(); } }
+    finally {
+      this.writing[id] = false;
+      if (this.pending[id]) { const p = this.pending[id]; delete this.pending[id]; this.save(id, p); }
+    }
+  },
+  goDb(col){ this.mode = "db"; this.col = col; Object.keys(this.watchers).forEach(id => this.sub(id)); }
+};
+
+/* ---------- state ---------- */
+const S = {
+  date: dkey(new Date()),
+  settings: {...DEFAULT_SETTINGS},
+  stats: {items:{}},
+  tasks: [],
+  draft: {title:"", cat:null, min:null, fixed:"", catManual:false, minManual:false, withPrep:true, ai:null},
+  askingDone: null,
+  editing: null,
+  showSettings: false,
+  sample: null, aiBusy:false, aiMsg:""
+};
+const dayId = k => "day-" + k;
+
+function watchDay(){
+  store.watch(dayId(S.date), d => { S.tasks = (d && Array.isArray(d.tasks)) ? d.tasks.map(cleanTask).filter(Boolean) : []; render(); });
+}
+function saveDay(){ store.save(dayId(S.date), {date:S.date, tasks:S.tasks}); }
+function saveStats(){ store.save("stats", S.stats); }
+function saveSettings(){ store.save("settings", S.settings); }
+
+/* ---------- estimation ---------- */
+function similarStat(title){
+  const k = norm(title); if (!k) return null;
+  const items = S.stats.items || {};
+  if (items[k]) return {key:k, ...items[k]};
+  const words = new Set(k.split(" ").filter(w => w.length > 2));
+  if (!words.size) return null;
+  let best = null, bestScore = 0;
+  for (const [key, v] of Object.entries(items)) {
+    const w2 = key.split(" ").filter(w => w.length > 2);
+    if (!w2.length) continue;
+    const common = w2.filter(w => [...words].some(a => a.slice(0,5) === w.slice(0,5))).length;
+    const score = common / Math.max(words.size, w2.length);
+    if (score > bestScore) { bestScore = score; best = {key, ...v}; }
+  }
+  return bestScore >= 0.6 ? best : null;
+}
+function estimate(title){
+  const t = norm(title);
+  const st = similarStat(title);
+  let rule = null;
+  for (const [re, cat, min, why] of RULES) if (re.test(t)) { rule = {cat, min, why}; break; }
+  if (st && st.n >= 1) {
+    return {min:r5(st.avg), cat:(rule && rule.cat) || st.cat || "other",
+      why:`по вашему опыту: обычно ${dur(r5(st.avg))} (${st.n} ${plural(st.n,"раз","раза","раз")})`};
+  }
+  if (rule) return {min:rule.min, cat:rule.cat, why:`подсказка: ${rule.why}`};
+  return {min:30, cat:"other", why:"новая задача — начните с 30 минут, дальше приложение подстроится под вас"};
+}
+function plural(n,a,b,c){ const m10=n%10, m100=n%100; return m10===1&&m100!==11?a:(m10>=2&&m10<=4&&(m100<10||m100>=20)?b:c); }
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const clampNum = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) && v !== "" && v !== null ? Math.max(lo, Math.min(hi, n)) : def; };
+function cleanTask(t){
+  if (!t || typeof t !== "object") return null;
+  const id = String(t.id || "").replace(/[^a-z0-9]/gi, "").slice(0, 16) || uid();
+  const out = {id, title:String(t.title || "").slice(0, 200), cat:safeCat(t.cat),
+    min:r5(clampNum(t.min, 5, 600, 30)), fixed:TIME_RE.test(t.fixed) ? t.fixed : "", done:!!t.done};
+  if (Number(t.actual) > 0) out.actual = Math.min(600, Math.round(Number(t.actual)));
+  return out;
+}
+function cleanSettings(d){
+  d = d || {};
+  return {dayStart:TIME_RE.test(d.dayStart) ? d.dayStart : DEFAULT_SETTINGS.dayStart,
+    dayEnd:TIME_RE.test(d.dayEnd) ? d.dayEnd : DEFAULT_SETTINGS.dayEnd,
+    gap:clampNum(d.gap, 0, 60, DEFAULT_SETTINGS.gap), afterLesson:clampNum(d.afterLesson, 0, 60, DEFAULT_SETTINGS.afterLesson)};
+}
+function cleanStats(d){
+  const items = {};
+  if (d && d.items && typeof d.items === "object") for (const [k, v] of Object.entries(d.items)) {
+    if (v && Number(v.n) > 0 && Number(v.avg) > 0) items[String(k).slice(0, 60)] = {n:Math.round(Number(v.n)), avg:Number(v.avg), cat:safeCat(v.cat)};
+  }
+  return {items};
+}
+function learn(task, actual){
+  const k = norm(task.title); if (!k || !actual) return;
+  const items = {...(S.stats.items || {})};
+  const cur = items[k] || {n:0, avg:0, cat:task.cat};
+  const n = Math.min(cur.n + 1, 10);           // recent experience weighs more
+  const avg = cur.n ? cur.avg + (actual - cur.avg) / n : actual;
+  items[k] = {n:cur.n + 1, avg:Math.round(avg*10)/10, cat:task.cat};
+  const keys = Object.keys(items);
+  if (keys.length > 300) keys.sort((a,b) => items[a].n - items[b].n).slice(0, keys.length-300).forEach(x => delete items[x]);
+  S.stats = {items};
+  saveStats();
+}
+
+/* ---------- scheduling ---------- */
+function schedule(){
+  const st = S.settings, start = toMin(st.dayStart), end = toMin(st.dayEnd);
+  const gap = Number(st.gap)||0, after = Number(st.afterLesson)||0;
+  const tail = t => gap + (t.cat === "lesson" ? after : 0);
+  const fixed = S.tasks.filter(t => t.fixed).map(t => ({t, s:toMin(t.fixed), e:toMin(t.fixed)+t.min})).sort((a,b) => a.s-b.s);
+  const flex = S.tasks.filter(t => !t.fixed);
+  // free windows between fixed blocks
+  let free = [{s:start, e:end}];
+  for (const f of fixed) {
+    const blockS = f.s, blockE = f.e + tail(f.t);
+    free = free.flatMap(w => {
+      if (blockE <= w.s || blockS >= w.e) return [w];
+      const out = [];
+      if (blockS > w.s) out.push({s:w.s, e:blockS - gap});
+      if (blockE < w.e) out.push({s:blockE, e:w.e});
+      return out;
+    }).filter(w => w.e > w.s);
+  }
+  const placed = fixed.map(f => ({t:f.t, s:f.s, e:f.e, fixed:true}));
+  const over = [];
+  // today: what is done stays from the morning, what is left is planned from now on
+  const isToday = S.date === dkey(new Date());
+  const now = isToday ? Math.ceil((new Date().getHours()*60 + new Date().getMinutes())/5)*5 : -1;
+  const order = isToday ? [...flex.filter(t => t.done), ...flex.filter(t => !t.done)] : flex;
+  for (const t of order) {
+    const from = (isToday && !t.done) ? now : -1;
+    const w = free.find(w => Math.min(w.e, end) - Math.max(w.s, from) >= t.min && w.e - w.s >= t.min);
+    if (!w) { over.push(t); continue; }
+    const s = Math.max(w.s, from);
+    placed.push({t, s, e:s + t.min, fixed:false});
+    w.s = s + t.min + tail(t);
+  }
+  placed.sort((a,b) => a.s - b.s || (a.fixed ? -1 : 1));
+  // overlaps between fixed tasks
+  const clash = new Set();
+  for (let i = 1; i < fixed.length; i++) if (fixed[i].s < fixed[i-1].e) { clash.add(fixed[i].t.id); clash.add(fixed[i-1].t.id); }
+  return {placed, over, clash, start, end};
+}
+
+function analyse(plan){
+  const notes = [];
+  const total = S.tasks.reduce((a,t) => a + t.min, 0);
+  const avail = plan.end - plan.start;
+  if (plan.over.length) notes.push({warn:true, text:`Не помещается: ${plan.over.length} ${plural(plan.over.length,"задача","задачи","задач")} на ${dur(plan.over.reduce((a,t)=>a+t.min,0))}. Перенесите на другой день или сократите время.`});
+  if (plan.clash.size) notes.push({warn:true, text:"Задачи с точным временем пересекаются — проверьте отмеченные."});
+  const work = S.tasks.filter(t => !["rest","home"].includes(t.cat)).reduce((a,t)=>a+t.min,0);
+  const rest = S.tasks.filter(t => t.cat === "rest").reduce((a,t)=>a+t.min,0);
+  if (total >= 240 && rest === 0) notes.push({warn:true, text:"В плане нет отдыха. Добавьте хотя бы 20–30 минут — прогулку или чай."});
+  // long stretch without a break
+  let runS = null, runE = null, longest = 0, longestAt = null;
+  for (const p of plan.placed) {
+    if (p.t.cat === "rest") { runS = null; continue; }
+    if (runS !== null && p.s - runE <= 15) { runE = Math.max(runE, p.e); }
+    else { runS = p.s; runE = p.e; }
+    if (runE - runS > longest) { longest = runE - runS; longestAt = runS; }
+  }
+  if (longest > 180) notes.push({warn:true, text:`С ${hhmm(longestAt)} больше ${dur(longest)} подряд без паузы. Вставьте перерыв 15 минут.`});
+  const lessons = S.tasks.filter(t => t.cat === "lesson").length;
+  const preps = S.tasks.filter(t => t.cat === "prep").length;
+  if (lessons > 0 && preps === 0) notes.push({warn:true, text:`${lessons} ${plural(lessons,"занятие","занятия","занятий")}, но нет подготовки. Обычно на одно занятие уходит 15–20 минут подготовки.`});
+  if (!notes.length && S.tasks.length) notes.push({warn:false, text: total <= avail ? `День сбалансирован: свободно ${dur(Math.max(0, avail - total - S.tasks.length*(Number(S.settings.gap)||0)))}.` : "План собран."});
+  return {notes, total, avail, work, rest};
+}
+
+/* ---------- actions ---------- */
+function updateDraftEstimate(){
+  const d = S.draft;
+  if (!d.title.trim()) { d.cat = d.catManual ? d.cat : null; if (!d.minManual) d.min = null; d.why = ""; return; }
+  const e = estimate(d.title);
+  if (!d.catManual) d.cat = e.cat;
+  if (!d.minManual) d.min = e.min;
+  d.why = d.ai ? d.ai : e.why;
+}
+function addTask(title, cat, min, fixed){
+  S.tasks.push({id:uid(), title:title.trim(), cat:cat||"other", min:r5(min||30), fixed:fixed||"", done:false});
+}
+function submitDraft(){
+  const d = S.draft; if (!d.title.trim()) { $("#title")?.focus(); return; }
+  updateDraftEstimate();
+  if (d.cat === "lesson" && d.withPrep && !S.tasks.some(t => norm(t.title) === norm("Подготовка: " + d.title))) {
+    const pe = estimate("Подготовка к занятию");
+    S.tasks.push({id:uid(), title:"Подготовка: " + d.title.trim(), cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false});
+  }
+  addTask(d.title, d.cat, d.min, d.fixed);
+  S.draft = {title:"", cat:null, min:null, fixed:"", catManual:false, minManual:false, withPrep:true, ai:null, why:""};
+  S.aiMsg = "";
+  saveDay(); render(); $("#title")?.focus();
+}
+function addPreset(i){
+  const [title, cat] = PRESETS[i];
+  const e = estimate(title);
+  addTask(title, cat, e.min, "");
+  saveDay(); render();
+}
+function toggleDone(id){
+  const t = S.tasks.find(x => x.id === id); if (!t) return;
+  t.done = !t.done;
+  if (t.done) S.askingDone = id; else { S.askingDone = null; delete t.actual; }
+  saveDay(); render();
+}
+function saveActual(id, val){
+  const t = S.tasks.find(x => x.id === id); if (!t) return;
+  const v = Math.max(1, Math.min(600, Math.round(Number(val)||t.min)));
+  t.actual = v; learn(t, v); S.askingDone = null; saveDay(); render();
+}
+function move(id, dir){
+  const flex = S.tasks.filter(t => !t.fixed);
+  const i = flex.findIndex(t => t.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= flex.length) return;
+  const a = S.tasks.indexOf(flex[i]), b = S.tasks.indexOf(flex[j]);
+  [S.tasks[a], S.tasks[b]] = [S.tasks[b], S.tasks[a]];
+  saveDay(); render();
+}
+function goDate(k){ store.unwatch(dayId(S.date)); S.date = k; S.askingDone = null; watchDay(); render(); window.scrollTo({top:0}); }
+async function carryOver(){
+  const left = S.tasks.filter(t => !t.done);
+  if (!left.length) return;
+  const next = addDays(S.date, 1);
+  const existing = (lsGet(dayId(next)) || {}).tasks || [];
+  let nextTasks = existing;
+  if (store.mode === "db") { try { const s = await store.col.doc(dayId(next)).get(); nextTasks = s.exists ? (s.data().tasks || []) : []; } catch(e) {} }
+  const moved = left.map(t => ({...t, id:uid(), fixed:""}));
+  await store.save(dayId(next), {date:next, tasks:[...nextTasks.map(t => ({...t})), ...moved]});
+  S.tasks = S.tasks.filter(t => t.done);
+  saveDay();
+  S.flash = `Перенесено на завтра: ${moved.length}`;
+  render();
+}
+function fillExample(){
+  [["Занятие с ребёнком (пример)","lesson",45,"10:00"],["Занятие с ребёнком (пример)","lesson",45,"11:00"],
+   ["Подготовка к занятиям (пример)","prep",30,""],["Пост в ВК про визуальное расписание (пример)","blog",60,""],
+   ["Приготовить обед (пример)","home",60,""],["Прогулка (пример)","rest",45,""],["Уборка на кухне (пример)","home",30,""]]
+   .forEach(([t,c,m,f]) => addTask(t,c,m,f));
+  saveDay(); render();
+}
+
+/* ---------- render ---------- */
+const ICON = {
+  left:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  right:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  tick:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+  up:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>',
+  down:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>'
+};
+
+function render(){
+  const app = $("#app");
+  const active = document.activeElement && document.activeElement.id;
+  const caret = active === "title" ? $("#title").selectionStart : null;
+  const plan = schedule(), A = analyse(plan);
+  const today = dkey(new Date());
+  const dateObj = fromKey(S.date);
+  const wd = dateObj.toLocaleDateString("ru-RU", {weekday:"long"});
+  const dm = dateObj.toLocaleDateString("ru-RU", {day:"numeric", month:"long"});
+  const rel = S.date === today ? "Сегодня" : S.date === addDays(today,1) ? "Завтра" : S.date === addDays(today,-1) ? "Вчера" : wd;
+  const byCat = {}; S.tasks.forEach(t => byCat[t.cat] = (byCat[t.cat]||0) + t.min);
+  const denom = Math.max(A.avail, A.total);
+  const bar = CAT_ORDER.filter(c => byCat[c]).map(c => `<span style="width:${(byCat[c]/denom*100).toFixed(2)}%;background:${color(c)}" title="${esc(CATS[c].name)}"></span>`).join("");
+  const legend = CAT_ORDER.filter(c => byCat[c]).map(c => `<span><i style="background:${color(c)}"></i>${esc(CATS[c].short)} ${dur(byCat[c])}</span>`).join("");
+
+  const d = S.draft;
+  const draftCats = CAT_ORDER.map(c => `<button class="cat" data-act="cat" data-cat="${esc(c)}" aria-pressed="${d.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("");
+
+  // timeline
+  let tl = "";
+  const nowMin = S.date === today ? (new Date().getHours()*60 + new Date().getMinutes()) : null;
+  let cursor = plan.start, nowShown = false;
+  const flexIds = S.tasks.filter(t => !t.fixed).map(t => t.id);
+  const nowRowHtml = () => `<div class="now" aria-label="Сейчас"><div class="num">${hhmm(nowMin)}</div><div></div></div>`;
+  for (const p of plan.placed) {
+    if (nowMin !== null && !nowShown && nowMin < p.s && nowMin >= plan.start) { tl += `${nowRowHtml()}`; nowShown = true; }
+    if (p.s - cursor >= 20) tl += `<div class="gap"><div></div><div>свободно ${dur(p.s - cursor)}</div></div>`;
+    const t = p.t, fi = flexIds.indexOf(t.id);
+    const clash = plan.clash.has(t.id);
+    tl += `<div class="blk${t.done?" done":""}">
+      <div class="when num">${hhmm(p.s)}<small>${hhmm(p.e)}</small></div>
+      <div class="card">
+        <button class="tick" data-act="done" data-id="${esc(t.id)}" aria-label="${t.done?"Отметить как не сделано":"Отметить как сделано"}">${ICON.tick}</button>
+        <div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0">
+          <div class="t">${esc(t.title)}</div>
+          <div class="m"><span>${esc(CATS[t.cat]?.short || "Другое")}</span><span class="num">${dur(t.min)}</span>${t.fixed?`<span class="pin">в ${esc(t.fixed)}</span>`:""}${t.actual?`<span class="num">факт ${dur(t.actual)}</span>`:""}${clash?`<span style="color:var(--warn);font-weight:700">пересекается</span>`:""}</div>
+          ${S.askingDone===t.id ? `<div class="actual" data-stop="1">Сколько заняло? <input id="act-${esc(t.id)}" type="number" inputmode="numeric" min="1" max="600" value="${Number(t.min)||30}" aria-label="Минут на самом деле"> мин
+             <button class="ghost" data-act="actual" data-id="${esc(t.id)}">Сохранить</button><button class="linkbtn" data-act="skipactual">Не важно</button></div>` : ""}
+        </div>
+        <span class="dot" style="background:${color(t.cat)}"></span>
+        ${t.fixed ? "" : `<div class="moves"><button data-act="up" data-id="${esc(t.id)}" aria-label="Раньше" ${fi<=0?"disabled":""}>${ICON.up}</button><button data-act="down" data-id="${esc(t.id)}" aria-label="Позже" ${fi>=flexIds.length-1?"disabled":""}>${ICON.down}</button></div>`}
+      </div></div>`;
+    cursor = Math.max(cursor, p.e);
+  }
+  if (nowMin !== null && !nowShown && nowMin >= plan.start && nowMin <= plan.end && plan.placed.length) tl += `${nowRowHtml()}`;
+  if (plan.placed.length && plan.end - cursor >= 20) tl += `<div class="gap"><div></div><div>до ${hhmm(plan.end)} свободно ${dur(plan.end - cursor)}</div></div>`;
+  const overHtml = plan.over.map(t => `<div class="blk over"><div class="when"></div><div class="card"><span class="dot" style="background:${color(t.cat)}"></span><div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><div class="t">${esc(t.title)}</div><div class="m"><span>${esc(CATS[t.cat]?.short||"Другое")}</span><span class="num">${dur(t.min)}</span></div></div></div></div>`).join("");
+
+  const empty = !S.tasks.length ? `<div class="empty"><b>На ${S.date===today?"сегодня":"этот день"} пока ничего нет</b>
+      <p>Напишите задачу в поле выше — например «занятие с Мишей в 10:00» или «пост в ВК» — и приложение предложит, сколько времени на неё заложить. Или нажмите готовую кнопку из списка.</p>
+      <button class="linkbtn" data-act="example">Показать пример дня</button></div>` : "";
+
+  const leftCount = S.tasks.filter(t => !t.done).length;
+  const lb = lsGet("lastBackup");
+  const storeNote = "Все данные хранятся только на этом телефоне и никуда не отправляются. " +
+    (lb ? `Последняя резервная копия: ${fromKey(lb).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}.` : "Сделайте резервную копию в настройках — на случай очистки браузера или смены телефона.");
+
+  app.innerHTML = `
+  <header class="day">
+    <div class="dayrow">
+      <button class="iconbtn" data-act="prev" aria-label="Предыдущий день">${ICON.left}</button>
+      <h1><small>${esc(rel)}</small>${esc(rel===wd?dm:`${wd}, ${dm}`)}</h1>
+      ${S.date!==today?`<button class="todaybtn" data-act="today">Сегодня</button>`:""}
+      <button class="iconbtn" data-act="next" aria-label="Следующий день">${ICON.right}</button>
+    </div>
+    <div class="load">
+      <div class="loadtext"><span>Запланировано <b class="num">${dur(A.total)}</b> из <span class="num">${dur(A.avail)}</span></span><span class="num">${esc(S.settings.dayStart)}–${esc(S.settings.dayEnd)}</span></div>
+      <div class="bar" role="img" aria-label="Распределение времени по видам дел">${bar}</div>
+      ${legend?`<div class="legend">${legend}</div>`:""}
+    </div>
+  </header>
+
+  ${S.flash?`<div class="notes"><div class="note good">${esc(S.flash)}</div></div>`:""}
+
+  <section class="add" aria-label="Новая задача">
+    <label class="big" for="title">Что нужно сделать?</label>
+    <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
+    ${d.title.trim() ? `<div class="suggest">
+      <div class="estimate">
+        <button class="step" data-act="min" data-d="-15">−15</button><button class="step" data-act="min" data-d="-5">−5</button>
+        <span class="mins num" aria-live="polite">${dur(d.min||30)}</span>
+        <button class="step" data-act="min" data-d="5">+5</button><button class="step" data-act="min" data-d="15">+15</button>
+      </div>
+      <div class="why">${esc(d.why||"")}</div>
+      <div class="cats" role="group" aria-label="Вид дела">${draftCats}</div>
+      <div class="row"><label for="fixed">Точное время</label><input id="fixed" class="time" type="time" value="${esc(d.fixed)}">${d.fixed?`<button class="linkbtn" data-act="clearfixed">убрать</button>`:`<span class="why">или впишем в свободное окно</span>`}</div>
+      ${d.cat==="lesson"?`<label class="check"><input id="withprep" type="checkbox" ${d.withPrep?"checked":""}> Добавить подготовку к этому занятию</label>`:""}
+      <div class="row"><button class="primary" data-act="add">Добавить в план</button></div>
+    </div>` : ""}
+  </section>
+
+  <section class="presets" aria-label="Быстро добавить">
+    <h2>Быстро добавить</h2>
+    <div class="chips">${PRESETS.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p[1])}"></i>${esc(p[0])}</b><span class="num">${dur(estimate(p[0]).min)}</span></button>`).join("")}</div>
+  </section>
+
+  ${A.notes.length?`<div class="notes">${A.notes.map(n => `<div class="note${n.warn?"":" good"}">${esc(n.text)}</div>`).join("")}</div>`:""}
+
+  <section class="sec" aria-label="План дня">
+    <h2>План дня</h2>
+    ${empty}
+    <div class="tl">${tl}</div>
+  </section>
+
+  ${plan.over.length?`<section class="sec"><h2>Не помещается в день</h2><div class="tl">${overHtml}</div></section>`:""}
+
+  <footer>
+    ${leftCount && S.tasks.length ? `<button class="ghost" data-act="carry">Перенести невыполненное на завтра (${Number(leftCount)})</button>` : ""}
+    <button class="ghost" data-act="settings">${ICON.gear.replace("<svg","<svg width='16' height='16' style='vertical-align:-3px;margin-right:6px'")}Настройки дня</button>
+    <div class="store">${esc(storeNote)}</div>
+  </footer>
+  ${S.editing ? editSheet() : ""}
+  ${S.showSettings ? settingsSheet() : ""}`;
+
+  if (active === "title") { const el = $("#title"); el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); }
+  if (S.askingDone) { const el = document.getElementById("act-"+S.askingDone); el && el.focus({preventScroll:true}); }
+}
+
+function editSheet(){
+  const t = S.tasks.find(x => x.id === S.editing); if (!t) { S.editing = null; return ""; }
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Изменить задачу" data-stop="1">
+    <h3>Изменить задачу</h3>
+    <input id="e-title" class="field" value="${esc(t.title)}" aria-label="Название">
+    <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${t.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
+    <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${Number(t.min)||30}">
+      <label for="e-fixed">Точное время</label><input id="e-fixed" class="time" type="time" value="${esc(t.fixed||"")}"></div>
+    <div class="actions"><button class="ghost danger" data-act="delete">Удалить</button>
+      <span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="saveedit">Сохранить</button></span></div>
+  </div></div>`;
+}
+function settingsSheet(){
+  const s = S.settings;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Настройки дня" data-stop="1">
+    <h3>Настройки дня</h3>
+    <div class="settings">
+      <label for="s-start">Начало дня</label><input id="s-start" class="time" type="time" value="${esc(s.dayStart)}">
+      <label for="s-end">Конец рабочего дня</label><input id="s-end" class="time" type="time" value="${esc(s.dayEnd)}">
+      <label for="s-gap">Пауза между делами, мин</label><input id="s-gap" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.gap)||0}">
+      <label for="s-after">После занятия (записи, проветрить), мин</label><input id="s-after" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.afterLesson)||0}">
+    </div>
+    <div class="actions"><span></span><span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="savesettings">Сохранить</button></span></div>
+    <h3>Резервная копия</h3>
+    <p class="store" style="margin:0">Копия — это текст со всеми задачами и настройками. Скопируйте его и сохраните в заметках или отправьте себе в мессенджер. Чтобы вернуть данные, вставьте текст ниже и нажмите «Восстановить».</p>
+    <div class="row"><button class="ghost" data-act="backup">Скопировать резервную копию</button></div>
+    <textarea id="backup-text" class="field" rows="3" placeholder="Сюда вставьте сохранённую копию" aria-label="Текст резервной копии"></textarea>
+    <div class="row"><button class="ghost" data-act="restore">Восстановить из копии</button></div>
+    ${S.backupMsg?`<div class="store" aria-live="polite">${esc(S.backupMsg)}</div>`:""}
+  </div></div>`;
+}
+function backupText(){
+  const data = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i);
+    if (k && k.startsWith(LSP) && /^(settings|stats|day-\d{4}-\d{2}-\d{2})$/.test(k.slice(LSP.length))) data[k.slice(LSP.length)] = lsGet(k.slice(LSP.length)); } } catch(e) {}
+  return JSON.stringify({app:"den-viktorii", v:1, at:dkey(new Date()), data});
+}
+function doBackup(){
+  const text = backupText();
+  const done = ok => { if (ok) { lsSet("lastBackup", dkey(new Date())); S.backupMsg = "Копия скопирована. Вставьте её в заметки или отправьте себе в мессенджер."; }
+    else { S.backupMsg = "Не получилось скопировать автоматически. Текст копии — в поле выше: выделите его и скопируйте."; }
+    render(); if (!ok) { const t = document.getElementById("backup-text"); if (t) { t.value = text; t.focus(); t.select(); } } };
+  try { navigator.clipboard.writeText(text).then(() => done(true), () => done(false)); } catch(e) { done(false); }
+}
+function doRestore(){
+  const raw = (document.getElementById("backup-text") || {}).value || "";
+  let obj = null; try { obj = JSON.parse(raw.trim()); } catch(e) {}
+  if (!obj || obj.app !== "den-viktorii" || !obj.data || typeof obj.data !== "object") { S.backupMsg = "Это не похоже на копию планировщика. Вставьте текст целиком."; render(); return; }
+  let n = 0;
+  for (const [k, v] of Object.entries(obj.data)) {
+    if (k === "settings") { lsSet(k, cleanSettings(v)); n++; }
+    else if (k === "stats") { lsSet(k, cleanStats(v)); n++; }
+    else if (/^day-\d{4}-\d{2}-\d{2}$/.test(k) && v && Array.isArray(v.tasks)) { lsSet(k, {date:k.slice(4), tasks:v.tasks.map(cleanTask).filter(Boolean)}); n++; }
+  }
+  S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats"));
+  const d = lsGet(dayId(S.date)); S.tasks = d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+  S.backupMsg = `Восстановлено: ${n} ${plural(n,"запись","записи","записей")}.`;
+  render();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("input", e => {
+  if (e.target.id === "title") {
+    const had = !!S.draft.title.trim();
+    S.draft.title = e.target.value; S.draft.ai = null;
+    updateDraftEstimate();
+    if (had !== !!S.draft.title.trim()) render();
+    else { const m = document.querySelector(".mins"), w = document.querySelector(".why");
+      if (m) m.textContent = dur(S.draft.min||30); if (w) w.textContent = S.draft.why||"";
+      document.querySelectorAll('.add .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === S.draft.cat)));
+      const needPrep = S.draft.cat === "lesson", hasPrep = !!$("#withprep");
+      if (needPrep !== hasPrep) render(); }
+  }
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
+  if (e.target.id === "withprep") { S.draft.withPrep = e.target.checked; }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.id === "title") { e.preventDefault(); submitDraft(); }
+  if (e.key === "Enter" && e.target.id && e.target.id.startsWith("act-")) { e.preventDefault(); saveActual(e.target.id.slice(4), e.target.value); }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="edit"]')) { e.preventDefault(); S.editing = e.target.dataset.id; render(); }
+  if (e.key === "Escape" && (S.editing || S.showSettings)) { S.editing = null; S.showSettings = false; render(); }
+});
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  const stopper = e.target.closest("[data-stop]");
+  if (el.dataset.act === "closesheet" && stopper && el.classList.contains("scrim")) return; // click inside sheet
+  if (el.dataset.act === "edit" && stopper && stopper !== el && el.contains(stopper)) return; // click inside "actual" form
+  const act = el.dataset.act, id = el.dataset.id;
+  if (act !== "add") S.flash = "";
+  switch (act) {
+    case "prev": goDate(addDays(S.date,-1)); break;
+    case "next": goDate(addDays(S.date,1)); break;
+    case "today": goDate(dkey(new Date())); break;
+    case "cat": S.draft.cat = el.dataset.cat; S.draft.catManual = true; render(); break;
+    case "min": S.draft.min = r5((S.draft.min||30) + Number(el.dataset.d)); S.draft.minManual = true; render(); break;
+    case "clearfixed": S.draft.fixed = ""; render(); break;
+    case "add": submitDraft(); break;
+    case "preset": addPreset(Number(el.dataset.i)); break;
+    case "done": toggleDone(id); break;
+    case "actual": saveActual(id, document.getElementById("act-"+id)?.value); break;
+    case "skipactual": S.askingDone = null; render(); break;
+    case "up": move(id,-1); break;
+    case "down": move(id,1); break;
+    case "edit": S.editing = id; render(); break;
+    case "ecat": { const t = S.tasks.find(x => x.id === S.editing); if (t) { t._cat = el.dataset.cat; document.querySelectorAll('.sheet .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === el.dataset.cat))); } break; }
+    case "saveedit": { const t = S.tasks.find(x => x.id === S.editing); if (t) {
+        const title = $("#e-title").value.trim(); if (title) t.title = title;
+        t.min = r5(Number($("#e-min").value) || t.min); t.fixed = $("#e-fixed").value || "";
+        if (t._cat) { t.cat = t._cat; } delete t._cat; saveDay(); }
+      S.editing = null; render(); break; }
+    case "delete": S.tasks = S.tasks.filter(x => x.id !== S.editing); S.editing = null; saveDay(); render(); break;
+    case "closesheet": { const t = S.tasks.find(x => x.id === S.editing); if (t) delete t._cat; S.editing = null; S.showSettings = false; render(); break; }
+    case "settings": S.showSettings = true; S.backupMsg = ""; render(); break;
+    case "savesettings": {
+      const st = $("#s-start").value || S.settings.dayStart, en = $("#s-end").value || S.settings.dayEnd;
+      S.settings = {dayStart:st, dayEnd: toMin(en) > toMin(st) ? en : S.settings.dayEnd,
+        gap: Math.max(0, Math.min(60, Number($("#s-gap").value)||0)), afterLesson: Math.max(0, Math.min(60, Number($("#s-after").value)||0))};
+      saveSettings(); S.showSettings = false; render(); break; }
+    case "carry": carryOver(); break;
+    case "backup": doBackup(); break;
+    case "restore": doRestore(); break;
+    case "example": fillExample(); break;
+  }
+});
+
+/* ---------- boot ---------- */
+store.watch("settings", d => { S.settings = cleanSettings(d); render(); });
+store.watch("stats", d => { S.stats = cleanStats(d); render(); });
+watchDay();
+render();
+setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
+
+(async () => { try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch(e) {} })();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); }); }
+</script>
+</body>
+</html>
