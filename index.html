@@ -463,12 +463,15 @@ async function voiceStart(){
 async function voiceStop(){
   if (VOICE.state !== "listening") return;
   VOICE.state = "finishing"; render();
+  const lastPartial = VOICE.partial, finalBefore = VOICE.final;
   try { VOICE.rec.retrieveFinalResult(); } catch(e) {}
-  await new Promise(r => setTimeout(r, 800));
+  for (let i = 0; i < 15 && VOICE.final === finalBefore; i++) await new Promise(r => setTimeout(r, 100));
+  if (VOICE.final === finalBefore && lastPartial) VOICE.final += (VOICE.final ? " " : "") + lastPartial;   // final result was late: keep what was heard
   voiceCleanup(); VOICE.partial = ""; showVoiceText();
   VOICE.state = "idle"; VOICE.msg = S.phraseText.trim() ? "" : "Не расслышала. Попробуйте говорить ближе к телефону.";
   if (S.phraseText.trim()) S.phrase = parsePhrase(S.phraseText);
   render();
+  const box = document.querySelector('[aria-label="Сказать одной фразой"]'); if (box && box.scrollIntoView) box.scrollIntoView({block:"start", behavior:"smooth"});
 }
 
 /* ---------- one-phrase input (voice via the keyboard microphone, or typed) ---------- */
@@ -524,7 +527,11 @@ function tidyTitle(s){
   let w = s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   while (w.length && LEAD_FILLER.has(w[0])) w.shift();
   while (w.length && TAIL_FILLER.has(w[w.length-1])) w.pop();
-  const t = w.join(" ").replace(/(^|\s)вк(?=\s|$)/g, "$1ВК");
+  let t = w.join(" ").replace(/(^|\s)вк(?=\s|$)/g, "$1ВК");
+  // a child's name after "занятие с …", "консультация родителей …": capitalise it (speech recognition writes names in lower case)
+  const COMMON = new Set(["ребенком","ребёнком","детьми","родителями","мамой","папой","бабушкой","группой","классом","логопедом","психологом","учителем","коллегой","коллегами","специалистом","тьютором","педагогом","ним","ней","ними"]);
+  if (/^(занятие|занятия|урок|консультация|встреча|диагностика|созвон)/.test(t))
+    t = t.replace(/(\s(?:с|со|родителей|для|у)\s+)([а-я][а-я-]+)/g, (m, pre, name) => COMMON.has(name) ? m : pre + name[0].toUpperCase() + name.slice(1));
   return t ? t[0].toUpperCase() + t.slice(1) : "";
 }
 const stems = s => norm(s).split(" ").filter(x => x.length > 1 && !["на","в","к","с","и","по","для","про"].includes(x)).map(x => x.slice(0, 5));
@@ -555,8 +562,37 @@ function takeRecurring(s){
   days = [...new Set(days)];
   return days.length ? {days, rest:s.replace(ph, " ")} : null;
 }
+/* ---------- spoken numbers ("в десять тридцать", "сорок пять минут") -> digits ---------- */
+const NUM_UNITS = {"ноль":0,"один":1,"одна":1,"одну":1,"два":2,"две":2,"три":3,"четыре":4,"пять":5,"шесть":6,"семь":7,"восемь":8,"девять":9,
+  "десять":10,"одиннадцать":11,"двенадцать":12,"тринадцать":13,"четырнадцать":14,"пятнадцать":15,"шестнадцать":16,"семнадцать":17,"восемнадцать":18,"девятнадцать":19};
+const NUM_TENS = {"двадцать":20,"тридцать":30,"сорок":40,"пятьдесят":50};
+const ORD_GEN = {"первого":1,"второго":2,"третьего":3,"четвертого":4,"пятого":5,"шестого":6,"седьмого":7,"восьмого":8,"девятого":9,"десятого":10,"одиннадцатого":11,"двенадцатого":12};
+function spokenToDigits(text){
+  let t = " " + String(text).toLowerCase().replace(/ё/g, "е") + " ";
+  // "в половине десятого", "полдесятого", "пол десятого" -> 9:30
+  t = t.replace(/(?:(\s(?:в|к)\s+)половин[еуы]\s+|\s(?:в\s+|к\s+)?пол\s*-?\s*)(первого|второго|третьего|четвертого|пятого|шестого|седьмого|восьмого|девятого|десятого|одиннадцатого|двенадцатого)(?=\s)/g,
+    (m, pre, w) => ` в ${ORD_GEN[w] === 1 ? 12 : ORD_GEN[w] - 1}:30`);
+  // number words -> numbers ("двадцать пять" -> 25)
+  const words = t.trim().split(/\s+/), out = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (NUM_TENS[w] !== undefined) {
+      const nx = NUM_UNITS[words[i+1]];
+      if (nx !== undefined && nx >= 1 && nx <= 9) { out.push(String(NUM_TENS[w] + nx)); i++; } else out.push(String(NUM_TENS[w]));
+    } else if (NUM_UNITS[w] !== undefined) out.push(String(NUM_UNITS[w]));
+    else out.push(w);
+  }
+  t = " " + out.join(" ") + " ";
+  // "в час дня" -> "в 1 дня"
+  t = t.replace(/(\s(?:в|к)\s+)час(?=\s+(?:дня|ночи)\s|\s)/g, "$11");
+  // "в 15 0 0" / "в 15 00" -> "в 15:00"; "в 10 30" -> "в 10:30" (not when it is a duration: "в 10 45 минут")
+  t = t.replace(/(\s(?:в|к|с|на|до)\s+)(\d{1,2})\s+0\s+0(?=\s)/g, "$1$2:00");
+  t = t.replace(/(\s(?:в|к|с|на|до)\s+)(\d{1,2})\s+(\d{2})(?=\s)(?!\s*мин)/g, (m, pre, h, mi) => (Number(h) <= 23 && Number(mi) <= 59) ? `${pre}${h}:${mi}` : m);
+  return t.trim();
+}
+
 function parsePhrase(text){
-  let raw = String(text || "").toLowerCase().replace(/ё/g, "е").replace(/[«»"“”]/g, " ");
+  let raw = spokenToDigits(String(text || "")).replace(/[«»"“”]/g, " ");
   raw = raw.replace(new RegExp("(" + WD + ")\\s*,\\s*(?=(?:и\\s+)?(?:(?:в|во|по)\\s+)?(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень))", "g"), "$1 и ");
   const globalDate = takeDate(raw.replace(REC_RE, " ")).date;
   const clauses = raw.split(/\s*(?:[.;!?\n]+|,|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
@@ -1021,12 +1057,13 @@ function render(){
     ${S.tasks.length > 3 ? "" : `<div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>`}
     ${S.phrase ? `<div class="suggest" aria-live="polite">
       ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
-      <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Отмена</button></div>`
-      : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div>`}
+      <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
+      : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
     </div>` : `<div class="row">
       ${VOICE.state === "listening" ? `<button class="primary rec" data-act="voicestop">■ Стоп</button>`
         : `<button class="ghost mic" data-act="voice" ${VOICE.state !== "idle" ? "disabled" : ""}>${VOICE.state === "idle" ? "🎤 Говорить" : "⏳ Подождите…"}</button>`}
-      <button class="primary" data-act="parse" ${VOICE.state !== "idle" ? "disabled" : ""}>Разобрать фразу</button></div>
+      <button class="primary" data-act="parse" ${VOICE.state !== "idle" ? "disabled" : ""}>Разобрать фразу</button>
+      ${S.phraseText.trim() && VOICE.state === "idle" ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>
       ${VOICE.msg ? `<div class="why" aria-live="polite">${esc(VOICE.msg)}</div>` : ""}
       ${!lsGet("voiceReady") && VOICE.state === "idle" ? `<div class="why">При первом нажатии «Говорить» скачается модель речи 46 МБ — лучше по Wi-Fi. Голос распознаётся прямо в телефоне и никуда не отправляется.</div>` : ""}`}
   </section>
@@ -1154,7 +1191,7 @@ function doRestore(){
 
 /* ---------- events ---------- */
 document.addEventListener("input", e => {
-  if (e.target.id === "phrase") { S.phraseText = e.target.value; if (S.phrase) { S.phrase = null; render(); } return; }
+  if (e.target.id === "phrase") { const had = !!S.phraseText.trim(); S.phraseText = e.target.value; if (S.phrase || had !== !!S.phraseText.trim()) { S.phrase = null; render(); } return; }
   if (e.target.id === "title") {
     const had = !!S.draft.title.trim();
     S.draft.title = e.target.value; S.draft.ai = null;
@@ -1234,7 +1271,8 @@ document.addEventListener("click", e => {
     case "parse": S.phrase = parsePhrase(S.phraseText); render(); break;
     case "voice": voiceStart(); break;
     case "voicestop": voiceStop(); break;
-    case "cancelphrase": S.phrase = null; render(); break;
+    case "cancelphrase": S.phrase = null; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
+    case "clearphrase": S.phrase = null; S.phraseText = ""; VOICE.msg = ""; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
     case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = "";
       S.flash = r.n ? `Готово: ${r.n} ${plural(r.n,"изменение","изменения","изменений")}${r.firstDate && r.firstDate !== S.date ? " — смотрите " + relLabel(r.firstDate) : ""}.` : "Нечего применять.";
       render(); break; }
