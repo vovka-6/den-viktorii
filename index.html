@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#17766B">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -135,6 +135,11 @@ header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; backgro
 .empty{background:var(--surface); border:1px dashed var(--line); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:10px}
 .empty p{margin:0; color:var(--muted)}
 .over .card{border-style:dashed}
+.plist{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:15px}
+.plist li.miss{color:var(--warn)}
+textarea.field{resize:vertical; min-height:64px; font-family:inherit}
+.syncbox{display:flex; flex-direction:column; gap:8px}
+.syncbox label{font-size:14px; color:var(--muted)}
 
 /* sheet */
 .scrim{position:fixed; inset:0; background:rgba(10,20,20,.45); z-index:20; display:flex; align-items:flex-end; justify-content:center}
@@ -207,35 +212,293 @@ const uid = () => Math.random().toString(36).slice(2,10);
 const safeCat = c => (Object.prototype.hasOwnProperty.call(CATS, c) ? c : "other");
 const color = c => `var(--c-${safeCat(c)})`;
 
-/* ---------- storage: claude db (per-person, private) with local fallback ---------- */
+/* ---------- storage on the device ---------- */
 const LSP = "den-viktorii:";
 const lsGet = k => { try { const v = localStorage.getItem(LSP+k); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
 const lsSet = (k,v) => { try { localStorage.setItem(LSP+k, JSON.stringify(v)); } catch(e) {} };
+/* ---------- local store (single source on the device) ---------- */
+const lsDel = k => { try { localStorage.removeItem(LSP+k); } catch(e) {} };
+const DOC_RE = /^(settings|stats|day-\d{4}-\d{2}-\d{2})$/;
 const store = {
-  mode:"local", col:null, watchers:{}, unsub:{}, writing:{}, pending:{}, migrated:{}, failed:false,
-  watch(id, cb){ this.watchers[id] = cb; cb(lsGet(id)); if (this.mode === "db") this.sub(id); },
-  unwatch(id){ delete this.watchers[id]; if (this.unsub[id]) { this.unsub[id](); delete this.unsub[id]; } },
-  sub(id){
-    if (this.unsub[id]) this.unsub[id]();
-    this.unsub[id] = this.col.doc(id).onSnapshot(snap => {
-      if (snap.exists) { const d = snap.data(); lsSet(id, d); this.watchers[id] && this.watchers[id](d); }
-      else { const local = lsGet(id); if (local && !this.migrated[id]) { this.migrated[id] = 1; this.save(id, local); } else this.watchers[id] && this.watchers[id](null); }
-    }, () => {});
-  },
-  async save(id, data){
-    lsSet(id, data);
-    if (this.mode !== "db") return;
-    if (this.writing[id]) { this.pending[id] = data; return; }
-    this.writing[id] = true;
-    try { await this.col.doc(id).set(JSON.parse(JSON.stringify(data))); }
-    catch(e) { if (e && e.code === "invalid_argument") { this.failed = true; this.mode = "local"; render(); } }
-    finally {
-      this.writing[id] = false;
-      if (this.pending[id]) { const p = this.pending[id]; delete this.pending[id]; this.save(id, p); }
+  mode:"local", watchers:{},
+  watch(id, cb){ this.watchers[id] = cb; cb(lsGet(id)); },
+  unwatch(id){ delete this.watchers[id]; },
+  save(id, data){ lsSet(id, {...data, _m:Date.now()}); SYNC.schedule(); return Promise.resolve(); },
+  refresh(){ for (const [id, cb] of Object.entries(this.watchers)) cb(lsGet(id)); }
+};
+function localDocs(){
+  const out = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i);
+    if (k && k.startsWith(LSP) && DOC_RE.test(k.slice(LSP.length))) out[k.slice(LSP.length)] = lsGet(k.slice(LSP.length)); } } catch(e) {}
+  return out;
+}
+function sanitizeDoc(id, d){
+  const m = Number(d && d._m) || 0;
+  if (id === "settings") return {...cleanSettings(d), _m:m};
+  if (id === "stats") return {...cleanStats(d), _m:m};
+  return {date:id.slice(4), tasks:(d && Array.isArray(d.tasks) ? d.tasks : []).map(cleanTask).filter(Boolean), _m:m};
+}
+
+/* ---------- sync: one encrypted file in the owner's private GitHub repository ---------- */
+const SYNC_FILE = "planner.enc.json";
+const REPO_RE = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/;
+const b64 = bytes => { const a = new Uint8Array(bytes); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pass, saltB64){
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2", salt:unb64(saltB64), iterations:310000, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, true, ["encrypt","decrypt"]);
+  return b64(await crypto.subtle.exportKey("raw", key));
+}
+const importKey = raw => crypto.subtle.importKey("raw", unb64(raw), {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
+async function seal(keyRaw, saltB64, obj){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, await importKey(keyRaw), new TextEncoder().encode(JSON.stringify(obj)));
+  return {app:"den-viktorii", v:1, salt:saltB64, iv:b64(iv), ct:b64(ct)};
+}
+async function unseal(keyRaw, env){
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(env.iv)}, await importKey(keyRaw), unb64(env.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+class SyncError extends Error { constructor(msg, kind){ super(msg); this.kind = kind; } }
+const ghHeaders = token => ({"Authorization":"Bearer " + token, "Accept":"application/vnd.github+json", "X-GitHub-Api-Version":"2022-11-28"});
+function httpError(status){
+  if (status === 401) return new SyncError("Ключ доступа не подходит или его срок истёк. Создайте новый ключ и подключите синхронизацию заново.", "auth");
+  if (status === 403) return new SyncError("Ключу не хватает прав. Нужен доступ «Contents: Read and write» к репозиторию с данными.", "auth");
+  if (status === 404) return new SyncError("Репозиторий не найден или ключ к нему не подходит. Проверьте название вида «имя/репозиторий».", "auth");
+  return new SyncError(`GitHub ответил ошибкой ${status}. Попробую позже.`, "temp");
+}
+async function ghFetch(url, opts){
+  try { return await fetch(url, {cache:"no-store", credentials:"omit", referrerPolicy:"no-referrer", ...opts}); }
+  catch(e) { throw new SyncError("Нет связи с интернетом — синхронизирую, когда она появится.", "offline"); }
+}
+async function getRemote(repo, token){
+  const r = await ghFetch(`https://api.github.com/repos/${repo}/contents/${SYNC_FILE}`, {headers:ghHeaders(token)});
+  if (r.status === 404) return {exists:false};
+  if (!r.ok) throw httpError(r.status);
+  const j = await r.json();
+  let env = null;
+  try { env = JSON.parse(atob(String(j.content || "").replace(/\s/g, ""))); } catch(e) {}
+  if (!env || env.app !== "den-viktorii" || !env.salt || !env.iv || !env.ct) throw new SyncError("В репозитории лежит не файл планировщика. Используйте отдельный пустой репозиторий.", "auth");
+  return {exists:true, sha:j.sha, env};
+}
+const SYNC = {
+  cfg:null, busy:false, again:false, timer:null, status:"", ok:true,
+  load(){ const c = lsGet("sync"); this.cfg = (c && REPO_RE.test(c.repo) && c.token && c.key && c.salt) ? c : null; },
+  enabled(){ return !!this.cfg; },
+  schedule(){ if (!this.cfg) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.run(), 2500); },
+  async run(){
+    if (!this.cfg) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true;
+    const {repo, token, key, salt} = this.cfg;
+    try {
+      const remote = await getRemote(repo, token);
+      let rdocs = {};
+      if (remote.exists) {
+        if (remote.env.salt !== salt) throw new SyncError("Данные в репозитории зашифрованы другим паролем. Отключите синхронизацию и подключите заново с тем же паролем, что на другом устройстве.", "auth");
+        try { rdocs = (await unseal(key, remote.env)).docs || {}; }
+        catch(e) { throw new SyncError("Не удалось расшифровать данные: пароль не подходит.", "auth"); }
+      }
+      const ldocs = localDocs();
+      let changedLocal = false, needPush = !remote.exists;
+      for (const id of new Set([...Object.keys(ldocs), ...Object.keys(rdocs)])) {
+        if (!DOC_RE.test(id)) continue;
+        const l = ldocs[id], r = rdocs[id];
+        const lm = Number(l && l._m) || 0, rm = Number(r && r._m) || 0;
+        if (r && (!l || rm > lm)) { lsSet(id, sanitizeDoc(id, r)); changedLocal = true; }
+        else if (l && (!r || lm > rm)) needPush = true;
+      }
+      if (needPush) {
+        const env = await seal(key, salt, {docs:localDocs()});
+        const body = {message:"Обновление данных планировщика", content:btoa(JSON.stringify(env))};
+        if (remote.sha) body.sha = remote.sha;
+        const r = await ghFetch(`https://api.github.com/repos/${repo}/contents/${SYNC_FILE}`, {method:"PUT", headers:{...ghHeaders(token), "Content-Type":"application/json"}, body:JSON.stringify(body)});
+        if (r.status === 409 || r.status === 422) this.again = true;        // the other device saved at the same moment
+        else if (!r.ok) throw httpError(r.status);
+      }
+      const now = new Date();
+      lsSet("syncLast", now.toISOString());
+      this.ok = true; this.status = `Синхронизировано в ${hhmm(now.getHours()*60 + now.getMinutes())}`;
+      if (changedLocal) store.refresh();
+    } catch(e) {
+      this.ok = e.kind === "offline"; this.status = e.message || "Синхронизация не удалась.";
+    } finally {
+      this.busy = false;
+      if (!S.editing && !S.showSettings) render();
+      if (this.again) { this.again = false; this.schedule(); }
     }
   },
-  goDb(col){ this.mode = "db"; this.col = col; Object.keys(this.watchers).forEach(id => this.sub(id)); }
+  async connect(repo, token, pass){
+    repo = String(repo || "").trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "");
+    token = String(token || "").trim();
+    if (!REPO_RE.test(repo)) throw new SyncError("Название репозитория должно быть вида «имя/репозиторий», например vovka-6/den-viktorii-data.");
+    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(token)) throw new SyncError("Ключ доступа должен начинаться с github_pat_ — скопируйте его целиком.");
+    if (String(pass || "").length < 6) throw new SyncError("Пароль — минимум 6 символов.");
+    const rr = await ghFetch(`https://api.github.com/repos/${repo}`, {headers:ghHeaders(token)});
+    if (!rr.ok) throw httpError(rr.status);
+    const info = await rr.json();
+    if (!info.private) throw new SyncError("Этот репозиторий открытый. Для данных нужен закрытый (Private) репозиторий.");
+    const remote = await getRemote(repo, token);
+    let salt, key;
+    if (remote.exists) {
+      salt = remote.env.salt; key = await deriveKey(pass, salt);
+      try { await unseal(key, remote.env); } catch(e) { throw new SyncError("Пароль не подходит к уже сохранённым данным. Введите тот же пароль, что и на другом устройстве."); }
+    } else {
+      salt = b64(crypto.getRandomValues(new Uint8Array(16))); key = await deriveKey(pass, salt);
+    }
+    this.cfg = {repo, token, key, salt};
+    lsSet("sync", this.cfg);
+    await this.run();
+  },
+  disconnect(){ this.cfg = null; lsDel("sync"); this.status = ""; }
 };
+
+/* ---------- one-phrase input (voice via the keyboard microphone, or typed) ---------- */
+const WEEKDAY_STEMS = [["воскресень",0],["понедельник",1],["вторник",2],["сред",3],["четверг",4],["пятниц",5],["суббот",6]];
+function relLabel(k){
+  const t = dkey(new Date());
+  if (k === t) return "сегодня"; if (k === addDays(t,1)) return "завтра"; if (k === addDays(t,2)) return "послезавтра";
+  return fromKey(k).toLocaleDateString("ru-RU", {weekday:"short", day:"numeric", month:"long"});
+}
+function takeDate(s){
+  const today = dkey(new Date());
+  let m;
+  if ((m = s.match(/(^|\s)послезавтра(?=\s|$)/))) return {date:addDays(today,2), rest:s.replace(m[0], " ")};
+  if ((m = s.match(/(^|\s)завтра(?=\s|$)/))) return {date:addDays(today,1), rest:s.replace(m[0], " ")};
+  if ((m = s.match(/(^|\s)сегодня(?=\s|$)/))) return {date:today, rest:s.replace(m[0], " ")};
+  if ((m = s.match(/(^|\s)(?:в|во|на)?\s*(понедельник|вторник|среду|среда|четверг|пятницу|пятница|субботу|суббота|воскресенье)(?=\s|$)/))) {
+    const wd = WEEKDAY_STEMS.find(([st]) => m[2].startsWith(st))[1];
+    const d = new Date(); const diff = (wd - d.getDay() + 7) % 7;
+    return {date:addDays(today, diff), rest:s.replace(m[0], " ")};
+  }
+  return {date:null, rest:s};
+}
+const prevWord = (s, idx) => s.slice(0, idx).trim().split(/\s+/).pop() || "";
+function takeDuration(s){
+  let m;
+  const cut = mm => s.slice(0, mm.index) + " " + s.slice(mm.index + mm[0].length);
+  if ((m = s.match(/(?:^|\s)(?:на\s+)?полтора\s+час\S*/))) return {min:90, rest:cut(m)};
+  if ((m = s.match(/(?:^|\s)(?:на\s+)?полчаса(?=\s|$)/))) return {min:30, rest:cut(m)};
+  if ((m = s.match(/(?:^|\s)на\s+час(?=\s|$)/))) return {min:60, rest:cut(m)};
+  if ((m = s.match(/(?:^|\s)(?:на\s+)?(\d{1,3})\s*(?:мин\S*)(?=\s|$)/))) return {min:Number(m[1]), rest:cut(m)};
+  if ((m = s.match(/(?:^|\s)на\s+(\d+(?:[.,]\d+)?)\s*час\S*(?=\s|$)/))) return {min:Math.round(parseFloat(m[1].replace(",", "."))*60), rest:cut(m)};
+  m = s.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*час(?:а|ов)?(?=\s|$)(?!\s+(?:утра|дня|вечера|ночи))/);
+  if (m && !["в","к","с","до","после","около"].includes(prevWord(s, m.index + 1))) return {min:Math.round(parseFloat(m[1].replace(",", "."))*60), rest:cut(m)};
+  return {min:null, rest:s};
+}
+function takeTime(s){
+  let m;
+  const cut = mm => s.slice(0, mm.index) + " " + s.slice(mm.index + mm[0].length);
+  if ((m = s.match(/(?:^|\s)(?:в|к|на)\s+полдень(?=\s|$)/))) return {time:"12:00", rest:cut(m)};
+  if ((m = s.match(/(?:^|\s)(?:на|в)\s+(утро|вечер)(?=\s|$)/))) return {time:m[1] === "утро" ? "09:00" : "18:00", rest:cut(m)};
+  m = s.match(/(?:^|\s)(?:в|к|на|с)\s+(\d{1,2})(?:(?::|\.|\s)(\d{2}))?(?:\s*час(?:а|ов)?)?(?:\s+(утра|дня|вечера|ночи))?(?=\s|$)/);
+  if (!m) m = s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:\s+(утра|дня|вечера|ночи))?(?=\s|$)/);
+  if (!m) return {time:null, rest:s};
+  let h = Number(m[1]); const mi = Number(m[2] || 0); const part = m[3];
+  if (h > 23 || mi > 59) return {time:null, rest:s};
+  if ((part === "дня" || part === "вечера") && h < 12) h += 12;
+  else if (!part && h >= 1 && h <= 7) h += 12;                 // "в 3" during a working day means 15:00
+  return {time:String(h).padStart(2,"0") + ":" + String(mi).padStart(2,"0"), rest:cut(m)};
+}
+const LEAD_FILLER = new Set(["мне","нужно","надо","необходимо","хочу","запланируй","запланировать","добавь","добавить","поставь","поставить","пожалуйста","еще","ещё","и","а","также","так","потом","затем","у","меня","будет","еще","ну"]);
+const TAIL_FILLER = new Set(["в","на","к","с","и","а","пожалуйста","потом"]);
+function tidyTitle(s){
+  let w = s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  while (w.length && LEAD_FILLER.has(w[0])) w.shift();
+  while (w.length && TAIL_FILLER.has(w[w.length-1])) w.pop();
+  const t = w.join(" ").replace(/(^|\s)вк(?=\s|$)/g, "$1ВК");
+  return t ? t[0].toUpperCase() + t.slice(1) : "";
+}
+const stems = s => norm(s).split(" ").filter(x => x.length > 1 && !["на","в","к","с","и","по","для","про"].includes(x)).map(x => x.slice(0, 5));
+function findTask(tasks, target){
+  const want = stems(target); if (!want.length) return null;
+  let best = null, score = 0;
+  for (const t of tasks) {
+    const have = stems(t.title);
+    const hit = want.filter(w => have.some(h => h.startsWith(w.slice(0, 4)) || w.startsWith(h.slice(0, 4)))).length / want.length + (t.done ? 0 : 0.01);
+    if (hit > score) { score = hit; best = t; }
+  }
+  return score >= 0.5 ? best : null;
+}
+function dayTasks(date){
+  if (date === S.date) return S.tasks;
+  const d = lsGet(dayId(date)); return d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+}
+function parsePhrase(text){
+  const raw = String(text || "").toLowerCase().replace(/ё/g, "е").replace(/[«»"“”]/g, " ");
+  const globalDate = takeDate(raw).date;
+  const clauses = raw.split(/\s*(?:[.;!?\n]+|,|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
+  const actions = [];
+  let ctxDate = globalDate || S.date;
+  for (const clause of clauses) {
+    let c = " " + clause + " ";
+    const dt = takeDate(c); if (dt.date) { ctxDate = dt.date; c = dt.rest; }
+    const date = ctxDate;
+    let m;
+    if ((m = c.match(/^\s*(?:удали|удалить|убери|убрать|отмени|отменить|вычеркни)\s+(.+)$/))) {
+      const t = findTask(dayTasks(date), m[1]);
+      actions.push(t ? {type:"del", date, id:t.id, title:t.title} : {type:"miss", target:tidyTitle(m[1]), date});
+      continue;
+    }
+    if ((m = c.match(/^\s*(?:я\s+)?(?:сделала|выполнила|закончила|отметь)\s+(.+)$/)) || (m = c.match(/^\s*(.+?)\s+(?:сделала|сделано|готово|выполнено|выполнила|закончила)\s*$/))) {
+      const t = findTask(dayTasks(date), m[1].replace(/(^|\s)как\s+(сделанн\S*|выполненн\S*)/, " "));
+      actions.push(t ? {type:"done", date, id:t.id, title:t.title} : {type:"miss", target:tidyTitle(m[1]), date});
+      continue;
+    }
+    if ((m = c.match(/^\s*(?:перенеси|перенести|передвинь|сдвинь|переставь|перемести)\s+(.+?)\s+((?:на|в|к)\s+.+)$/))) {
+      const src = findTask(dayTasks(date), m[1]);
+      let spec = " " + m[2] + " ";
+      const nd = takeDate(spec); spec = nd.rest;
+      const nt = takeTime(nd.date ? " в " + spec.replace(/^\s*(на|в)\s+/, "") : spec);
+      if (!src) { actions.push({type:"miss", target:tidyTitle(m[1]), date}); continue; }
+      if (!nd.date && !nt.time) { actions.push({type:"miss", target:tidyTitle(m[1]) + " (не поняла, куда перенести)", date}); continue; }
+      actions.push({type:"move", date, id:src.id, title:src.title, toDate:nd.date || date, toTime:nt.time || ""});
+      continue;
+    }
+    const du = takeDuration(c); c = du.rest;
+    const tm = takeTime(c); c = tm.rest;
+    const title = tidyTitle(c);
+    if (!title) continue;
+    const e = estimate(title);
+    actions.push({type:"add", date, title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", why:du.min ? "" : e.why});
+  }
+  return actions;
+}
+function describe(a){
+  const when = d => d === S.date ? "" : ` (${relLabel(d)})`;
+  if (a.type === "add") return `Добавить: ${a.title} — ${relLabel(a.date)}${a.fixed ? ", в " + a.fixed : ""}, ${dur(a.min)}${a.cat === "lesson" ? " + подготовка" : ""}`;
+  if (a.type === "move") return `Перенести: ${a.title}${when(a.date)} → ${a.toDate !== a.date ? relLabel(a.toDate) : ""}${a.toDate !== a.date && a.toTime ? ", " : ""}${a.toTime ? "в " + a.toTime : ""}`;
+  if (a.type === "done") return `Отметить сделанным: ${a.title}${when(a.date)}`;
+  if (a.type === "del") return `Удалить: ${a.title}${when(a.date)}`;
+  return `Не нашла задачу «${a.target}» — проверьте название`;
+}
+function applyActions(actions){
+  const days = {};
+  const get = d => (days[d] = days[d] || dayTasks(d).map(t => ({...t})));
+  let n = 0, firstDate = null;
+  for (const a of actions) {
+    if (a.type === "add") {
+      const list = get(a.date);
+      if (a.cat === "lesson") { const pe = estimate("Подготовка к занятию"); list.push({id:uid(), title:"Подготовка: " + a.title, cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false}); }
+      list.push({id:uid(), title:a.title, cat:safeCat(a.cat), min:r5(a.min), fixed:a.fixed || "", done:false});
+      n++; firstDate = firstDate || a.date;
+    } else if (a.type === "del") {
+      days[a.date] = get(a.date).filter(t => t.id !== a.id); n++;
+    } else if (a.type === "done") {
+      const t = get(a.date).find(t => t.id === a.id); if (t) { t.done = true; n++; }
+    } else if (a.type === "move") {
+      const src = get(a.date); const t = src.find(t => t.id === a.id); if (!t) continue;
+      if (a.toDate !== a.date) { days[a.date] = src.filter(x => x.id !== a.id); get(a.toDate).push({...t, id:uid(), fixed:a.toTime || ""}); }
+      else t.fixed = a.toTime || t.fixed;
+      n++; firstDate = firstDate || a.toDate;
+    }
+  }
+  for (const [d, list] of Object.entries(days)) {
+    if (d === S.date) { S.tasks = list; saveDay(); }
+    else store.save(dayId(d), {date:d, tasks:list});
+  }
+  return {n, firstDate};
+}
 
 /* ---------- state ---------- */
 const S = {
@@ -247,7 +510,8 @@ const S = {
   askingDone: null,
   editing: null,
   showSettings: false,
-  sample: null, aiBusy:false, aiMsg:""
+  sample: null, aiBusy:false, aiMsg:"",
+  phraseText:"", phrase:null, syncMsg:"", syncBusy:false
 };
 const dayId = k => "day-" + k;
 
@@ -445,7 +709,6 @@ async function carryOver(){
   const next = addDays(S.date, 1);
   const existing = (lsGet(dayId(next)) || {}).tasks || [];
   let nextTasks = existing;
-  if (store.mode === "db") { try { const s = await store.col.doc(dayId(next)).get(); nextTasks = s.exists ? (s.data().tasks || []) : []; } catch(e) {} }
   const moved = left.map(t => ({...t, id:uid(), fixed:""}));
   await store.save(dayId(next), {date:next, tasks:[...nextTasks.map(t => ({...t})), ...moved]});
   S.tasks = S.tasks.filter(t => t.done);
@@ -474,7 +737,7 @@ const ICON = {
 function render(){
   const app = $("#app");
   const active = document.activeElement && document.activeElement.id;
-  const caret = active === "title" ? $("#title").selectionStart : null;
+  const caret = (active === "title" || active === "phrase") ? document.getElementById(active).selectionStart : null;
   const plan = schedule(), A = analyse(plan);
   const today = dkey(new Date());
   const dateObj = fromKey(S.date);
@@ -525,8 +788,10 @@ function render(){
 
   const leftCount = S.tasks.filter(t => !t.done).length;
   const lb = lsGet("lastBackup");
-  const storeNote = "Все данные хранятся только на этом телефоне и никуда не отправляются. " +
-    (lb ? `Последняя резервная копия: ${fromKey(lb).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}.` : "Сделайте резервную копию в настройках — на случай очистки браузера или смены телефона.");
+  const storeNote = SYNC.enabled()
+    ? `Данные хранятся на этом устройстве и в зашифрованном виде синхронизируются с вашим закрытым репозиторием. ${SYNC.status || "Синхронизация…"}`
+    : "Все данные хранятся только на этом устройстве и никуда не отправляются. " +
+      (lb ? `Последняя резервная копия: ${fromKey(lb).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}.` : "Сделайте резервную копию в настройках — на случай очистки браузера или смены телефона.");
 
   app.innerHTML = `
   <header class="day">
@@ -544,6 +809,17 @@ function render(){
   </header>
 
   ${S.flash?`<div class="notes"><div class="note good">${esc(S.flash)}</div></div>`:""}
+
+  <section class="add" aria-label="Сказать одной фразой">
+    <label class="big" for="phrase">Сказать одной фразой</label>
+    <textarea id="phrase" class="field" rows="2" placeholder="Нажмите микрофон на клавиатуре и скажите, например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
+    <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала».</div>
+    ${S.phrase ? `<div class="suggest" aria-live="polite">
+      ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
+      <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Отмена</button></div>`
+      : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div>`}
+    </div>` : `<div class="row"><button class="primary" data-act="parse">Разобрать фразу</button></div>`}
+  </section>
 
   <section class="add" aria-label="Новая задача">
     <label class="big" for="title">Что нужно сделать?</label>
@@ -585,7 +861,7 @@ function render(){
   ${S.editing ? editSheet() : ""}
   ${S.showSettings ? settingsSheet() : ""}`;
 
-  if (active === "title") { const el = $("#title"); el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); }
+  if (active === "title" || active === "phrase") { const el = document.getElementById(active); if (el) { el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); } }
   if (S.askingDone) { const el = document.getElementById("act-"+S.askingDone); el && el.focus({preventScroll:true}); }
 }
 
@@ -612,6 +888,18 @@ function settingsSheet(){
       <label for="s-after">После занятия (записи, проветрить), мин</label><input id="s-after" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.afterLesson)||0}">
     </div>
     <div class="actions"><span></span><span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="savesettings">Сохранить</button></span></div>
+    <h3>Телефон и компьютер</h3>
+    ${SYNC.enabled() ? `<div class="syncbox">
+      <p class="store" style="margin:0">Синхронизация включена: ${esc(SYNC.cfg.repo)}. ${esc(SYNC.status)}</p>
+      <div class="row"><button class="ghost" data-act="syncnow">Синхронизировать сейчас</button><button class="ghost danger" data-act="syncoff">Отключить на этом устройстве</button></div>
+    </div>` : `<div class="syncbox">
+      <p class="store" style="margin:0">Чтобы на телефоне и компьютере был один и тот же план, подключите закрытый репозиторий GitHub. Данные шифруются вашим паролем прямо на устройстве — без пароля их не прочитать никому. На втором устройстве введите тот же ключ и тот же пароль.</p>
+      <label for="s-repo">Репозиторий для данных</label><input id="s-repo" class="field" autocomplete="off" value="vovka-6/den-viktorii-data">
+      <label for="s-token">Ключ доступа (github_pat_…)</label><input id="s-token" class="field" type="password" autocomplete="off">
+      <label for="s-pass">Пароль для шифрования (запомните его!)</label><input id="s-pass" class="field" type="password" autocomplete="new-password">
+      <div class="row"><button class="primary" data-act="syncon" ${S.syncBusy ? "disabled" : ""}>${S.syncBusy ? "Подключаю…" : "Подключить"}</button></div>
+    </div>`}
+    ${S.syncMsg ? `<div class="store" aria-live="polite">${esc(S.syncMsg)}</div>` : ""}
     <h3>Резервная копия</h3>
     <p class="store" style="margin:0">Копия — это текст со всеми задачами и настройками. Скопируйте его и сохраните в заметках или отправьте себе в мессенджер. Чтобы вернуть данные, вставьте текст ниже и нажмите «Восстановить».</p>
     <div class="row"><button class="ghost" data-act="backup">Скопировать резервную копию</button></div>
@@ -639,18 +927,18 @@ function doRestore(){
   if (!obj || obj.app !== "den-viktorii" || !obj.data || typeof obj.data !== "object") { S.backupMsg = "Это не похоже на копию планировщика. Вставьте текст целиком."; render(); return; }
   let n = 0;
   for (const [k, v] of Object.entries(obj.data)) {
-    if (k === "settings") { lsSet(k, cleanSettings(v)); n++; }
-    else if (k === "stats") { lsSet(k, cleanStats(v)); n++; }
-    else if (/^day-\d{4}-\d{2}-\d{2}$/.test(k) && v && Array.isArray(v.tasks)) { lsSet(k, {date:k.slice(4), tasks:v.tasks.map(cleanTask).filter(Boolean)}); n++; }
+    if (DOC_RE.test(k) && v && typeof v === "object") { lsSet(k, {...sanitizeDoc(k, v), _m:Date.now()}); n++; }
   }
   S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats"));
   const d = lsGet(dayId(S.date)); S.tasks = d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
+  SYNC.schedule();
   S.backupMsg = `Восстановлено: ${n} ${plural(n,"запись","записи","записей")}.`;
   render();
 }
 
 /* ---------- events ---------- */
 document.addEventListener("input", e => {
+  if (e.target.id === "phrase") { S.phraseText = e.target.value; if (S.phrase) { S.phrase = null; render(); } return; }
   if (e.target.id === "title") {
     const had = !!S.draft.title.trim();
     S.draft.title = e.target.value; S.draft.ai = null;
@@ -669,6 +957,7 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "title") { e.preventDefault(); submitDraft(); }
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.id === "phrase") { e.preventDefault(); S.phrase = parsePhrase(S.phraseText); render(); }
   if (e.key === "Enter" && e.target.id && e.target.id.startsWith("act-")) { e.preventDefault(); saveActual(e.target.id.slice(4), e.target.value); }
   if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="edit"]')) { e.preventDefault(); S.editing = e.target.dataset.id; render(); }
   if (e.key === "Escape" && (S.editing || S.showSettings)) { S.editing = null; S.showSettings = false; render(); }
@@ -714,6 +1003,20 @@ document.addEventListener("click", e => {
     case "backup": doBackup(); break;
     case "restore": doRestore(); break;
     case "example": fillExample(); break;
+    case "parse": S.phrase = parsePhrase(S.phraseText); render(); break;
+    case "cancelphrase": S.phrase = null; render(); break;
+    case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = "";
+      S.flash = r.n ? `Готово: ${r.n} ${plural(r.n,"изменение","изменения","изменений")}${r.firstDate && r.firstDate !== S.date ? " — смотрите " + relLabel(r.firstDate) : ""}.` : "Нечего применять.";
+      render(); break; }
+    case "syncon": { if (S.syncBusy) break;
+      const repo = $("#s-repo").value, token = $("#s-token").value, pass = $("#s-pass").value;
+      S.syncBusy = true; S.syncMsg = ""; render();
+      SYNC.connect(repo, token, pass).then(() => { S.syncMsg = SYNC.ok ? "Синхронизация подключена." : SYNC.status; if (!SYNC.ok) SYNC.disconnect(); })
+        .catch(err => { S.syncMsg = (err && err.message) || "Не получилось подключить."; SYNC.disconnect(); })
+        .finally(() => { S.syncBusy = false; render(); });
+      break; }
+    case "syncnow": SYNC.run(); break;
+    case "syncoff": SYNC.disconnect(); S.syncMsg = "Синхронизация на этом устройстве отключена. Данные остались на устройстве."; render(); break;
   }
 });
 
@@ -721,7 +1024,12 @@ document.addEventListener("click", e => {
 store.watch("settings", d => { S.settings = cleanSettings(d); render(); });
 store.watch("stats", d => { S.stats = cleanStats(d); render(); });
 watchDay();
+SYNC.load();
 render();
+SYNC.run();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") SYNC.run(); });
+window.addEventListener("online", () => SYNC.run());
+setInterval(() => { if (document.visibilityState === "visible") SYNC.run(); }, 120000);
 setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
 
 (async () => { try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch(e) {} })();
