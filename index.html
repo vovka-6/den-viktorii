@@ -253,6 +253,22 @@ header.day{gap:10px; padding-block:12px 8px}
 .ebtn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--surface); font-weight:600}
 .ebtn[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .sheet .big{height:54px; font-size:17px; border-radius:16px}
+.copt{width:100%; text-align:left; display:flex; align-items:center; gap:12px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:12px}
+.copt .body{flex:1; display:flex; flex-direction:column}
+.copt small{font-size:13px; color:var(--muted)}
+.copt[aria-pressed="true"]{border:2px solid var(--accent)}
+.radio{width:22px; height:22px; border-radius:50%; border:2px solid var(--line); flex:none}
+.copt[aria-pressed="true"] .radio{border-color:var(--accent); background:radial-gradient(circle, var(--accent) 0 5px, transparent 6px)}
+.seg{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px}
+.seg button{height:42px; border-radius:10px; border:1px solid var(--line); background:var(--surface); font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.alertscrim{align-items:center; padding:16px; z-index:30}
+.pop{background:var(--surface); border-radius:22px; padding:20px; width:100%; max-width:420px; display:flex; flex-direction:column; gap:12px; box-shadow:0 12px 34px rgba(0,0,0,.3)}
+.pop h3{margin:0; font-family:var(--f-display); font-size:21px}
+.pop .ring{display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--accent)}
+.pbtns{display:grid; grid-template-columns:1fr auto auto; gap:8px}
+.pbtns button{height:48px; padding:0 12px; white-space:nowrap; font-size:15px}
+
 
 @media (prefers-reduced-motion: no-preference){ .tick, .cat, .chip{transition:background .15s, border-color .15s} }
 </style>
@@ -299,7 +315,7 @@ const RULES = [
   [/(спорт|трениров|йог|зарядк|бассейн)/, "rest", 60, "тренировка"],
   [/(отдых|кофе|(^|\s)чай|книг|чита|сериал|фильм|ванн|поспать|медит)/, "rest", 30, "отдых"]
 ];
-const DEFAULT_SETTINGS = {dayStart:"08:00", dayEnd:"21:00", gap:5, afterLesson:10};
+const DEFAULT_SETTINGS = {dayStart:"08:00", dayEnd:"21:00", gap:5, afterLesson:10, alerts:true};
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -906,7 +922,8 @@ const S = {
   sample: null, aiBusy:false, aiMsg:"",
   phraseText:"", phrase:null, syncMsg:"", syncBusy:false,
   recurring:{items:[]}, skip:[], editDays:[],
-  inbox:{items:[]}, meta:{energy:"ok", closed:false}, sheet:null, reviewSeen:"", reviewKeep:{}, reviewEnergy:"ok"
+  inbox:{items:[]}, meta:{energy:"ok", closed:false}, sheet:null, alert:null, calMsg:"",
+  cal:(() => { const p = lsGet("calPrefs") || {}; return {kind:"day", ahead:[5, 10, 30, 60].includes(p.ahead) ? p.ahead : 10, flex:p.flex !== false}; })(), reviewSeen:"", reviewKeep:{}, reviewEnergy:"ok"
 };
 const dayId = k => "day-" + k;
 
@@ -1015,7 +1032,7 @@ function cleanSettings(d){
   d = d || {};
   return {dayStart:TIME_RE.test(d.dayStart) ? d.dayStart : DEFAULT_SETTINGS.dayStart,
     dayEnd:TIME_RE.test(d.dayEnd) ? d.dayEnd : DEFAULT_SETTINGS.dayEnd,
-    gap:clampNum(d.gap, 0, 60, DEFAULT_SETTINGS.gap), afterLesson:clampNum(d.afterLesson, 0, 60, DEFAULT_SETTINGS.afterLesson)};
+    gap:clampNum(d.gap, 0, 60, DEFAULT_SETTINGS.gap), afterLesson:clampNum(d.afterLesson, 0, 60, DEFAULT_SETTINGS.afterLesson), alerts:d.alerts !== false};
 }
 function cleanStats(d){
   const items = {};
@@ -1194,6 +1211,8 @@ const ICON = {
   today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v14H4zM4 10h16M9 3v4M15 3v4"/></svg>',
   week:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v15H4zM4 10h16M10 10v10M16 10v10"/></svg>',
   inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5"/></svg>',
+  bell:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21h4"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M4 6h16v14H4zM4 10h16M9 3v4M15 3v4M12 13v4M10 15h4"/></svg>',
   stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>'
 };
 const CAT_ICON = {
@@ -1251,6 +1270,138 @@ function nowCard(plan){
     </section>`;
   }
   return "";
+}
+
+/* ---------- reminders: phone calendar (.ics) and the in-app "time to start" window ---------- */
+/* plan of any day without touching the open one */
+function planFor(k){
+  if (k === S.date) return {plan:schedule(), tasks:S.tasks};
+  const keep = {date:S.date, tasks:S.tasks, meta:S.meta};
+  const L = loadDay(k);
+  S.date = k; S.tasks = L.tasks; S.meta = {energy:L.meta.energy || "ok", closed:!!L.meta.closed};
+  try { return {plan:schedule(), tasks:L.tasks}; } finally { S.date = keep.date; S.tasks = keep.tasks; S.meta = keep.meta; }
+}
+const icsEsc = s => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const icsDT = (k, m) => k.replace(/-/g, "") + "T" + hhmm(m).replace(":", "") + "00";
+const ICS_DAY = ["SU","MO","TU","WE","TH","FR","SA"];
+function icsFold(line){            // lines longer than 75 bytes are folded, as the calendar format requires
+  const enc = new TextEncoder(); let out = "", cur = "", n = 0;
+  for (const ch of line) { const b = enc.encode(ch).length; if (n + b > 73) { out += cur + "\r\n "; cur = ""; n = 1; } cur += ch; n += b; }
+  return out + cur;
+}
+function buildIcs(kind, ahead, withFlex){
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const ev = [], today = dkey(new Date());
+  const alarm = title => ahead > 0 ? ["BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + icsEsc(title), `TRIGGER:-PT${Number(ahead)}M`, "END:VALARM"] : [];
+  const recDone = !!lsGet("icsRecurring");
+  if (kind === "rec") {
+    for (const r of S.recurring.items) {
+      if (!r.fixed) continue;
+      let k = r.from > today ? r.from : today; for (let i = 0; i < 7 && !r.days.includes(fromKey(k).getDay()); i++) k = addDays(k, 1);
+      const s = toMin(r.fixed);
+      ev.push(["BEGIN:VEVENT", `UID:rec-${r.id}@den-viktorii`, "DTSTAMP:" + stamp, "DTSTART:" + icsDT(k, s), "DTEND:" + icsDT(k, s + r.min),
+        "RRULE:FREQ=WEEKLY;BYDAY=" + r.days.map(d => ICS_DAY[d]).join(","), "SUMMARY:" + icsEsc(r.title), "DESCRIPTION:" + icsEsc("Постоянное дело из «Мой день»"), ...alarm(r.title), "END:VEVENT"]);
+    }
+  } else {
+    const days = kind === "week" ? Array.from({length:7}, (_, i) => addDays(weekStart(S.date), i)).filter(k => k >= today) : [S.date];
+    for (const k of days) {
+      const {plan} = planFor(k);
+      for (const p of plan.placed) {
+        const t = p.t;
+        if (t.done || (!t.fixed && !withFlex) || (recDone && t.rid && !t.rid.endsWith("p") && !t.custom)) continue;
+        if (k === today && p.e <= nowMinutes()) continue;
+        const L = t.list || [];
+        const desc = ((t.fixed ? "" : "Время по плану, может сдвинуться. ") + (L.length ? "Чек-лист: " + L.map(x => (x.d ? "✓ " : "• ") + x.t).join("; ") : "")).trim();
+        ev.push(["BEGIN:VEVENT", `UID:${t.id}-${k}@den-viktorii`, "DTSTAMP:" + stamp, "DTSTART:" + icsDT(k, p.s), "DTEND:" + icsDT(k, p.e),
+          "SUMMARY:" + icsEsc(t.title), ...(desc ? ["DESCRIPTION:" + icsEsc(desc)] : []), ...alarm(t.title), "END:VEVENT"]);
+      }
+    }
+  }
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Moj den//RU", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Мой день", ...ev.flat(), "END:VCALENDAR"];
+  return {text:lines.map(icsFold).join("\r\n") + "\r\n", count:ev.length};
+}
+function icsCounts(){
+  const r = {};
+  for (const kind of ["day", "week", "rec"]) r[kind] = buildIcs(kind, 0, S.cal.flex).count;
+  return r;
+}
+function exportIcs(share){
+  const {text, count} = buildIcs(S.cal.kind, S.cal.ahead, S.cal.flex);
+  if (!count) { S.calMsg = "Нечего добавлять: нет дел со временем."; render(); return; }
+  const name = S.cal.kind === "rec" ? "moj-den-postoyannye.ics" : S.cal.kind === "week" ? "moj-den-nedelya.ics" : `moj-den-${S.date}.ics`;
+  const file = new Blob([text], {type:"text/calendar;charset=utf-8"});
+  if (share) {
+    try { const f = new File([file], name, {type:"text/calendar"}); if (navigator.canShare && navigator.canShare({files:[f]})) { navigator.share({files:[f]}).catch(() => {}); } else { S.calMsg = "На этом телефоне так нельзя — используйте основную кнопку."; render(); return; } } catch(e) {}
+  } else {
+    const url = URL.createObjectURL(file), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  if (S.cal.kind === "rec") lsSet("icsRecurring", dkey(new Date()));
+  S.cal.ahead = Number(S.cal.ahead); lsSet("calPrefs", {ahead:S.cal.ahead, flex:S.cal.flex});
+  S.calMsg = `Файл с ${count} ${plural(count, "событием", "событиями", "событиями")} готов. iPhone покажет список — нажмите «Добавить все».`;
+  render();
+}
+function calSheet(){
+  const c = icsCounts(), recDone = lsGet("icsRecurring");
+  const opt = (k, title, sub) => `<button class="copt" data-act="calkind" data-k="${esc(k)}" aria-pressed="${S.cal.kind === k ? "true" : "false"}"><span class="radio"></span><span class="body"><b>${esc(title)}</b><small>${esc(sub)}</small></span></button>`;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Напоминания в календарь телефона" data-stop="1">
+    <h3>Напоминания в календарь телефона</h3>
+    <p class="store" style="margin:0">Дела попадут во встроенный Календарь iPhone. Напоминания будет присылать сам телефон — даже когда приложение закрыто и нет интернета.</p>
+    ${opt("day", relLabel(S.date)[0].toUpperCase() + relLabel(S.date).slice(1), `${c.day} ${plural(c.day, "дело", "дела", "дел")} со временем`)}
+    ${opt("week", "Вся неделя", `${c.week} ${plural(c.week, "дело", "дела", "дел")} со временем, с сегодняшнего дня`)}
+    ${opt("rec", "Постоянные занятия", c.rec ? `${c.rec} — добавить один раз, дальше повторяются сами${recDone ? " · уже добавляли " + fromKey(recDone).toLocaleDateString("ru-RU", {day:"numeric", month:"long"}) : ""}` : "нет постоянных дел с точным временем")}
+    ${S.cal.kind !== "rec" ? `<label class="check"><input id="cal-flex" type="checkbox" ${S.cal.flex ? "checked" : ""}> Вместе с делами без точного времени (по текущему плану)</label>` : ""}
+    ${recDone && S.cal.kind !== "rec" ? `<div class="why">Постоянные занятия уже в календаре — второй раз их не добавляем.</div>` : ""}
+    <div class="why">Напомнить заранее:</div>
+    <div class="seg">${[5, 10, 30, 60].map(m => `<button data-act="calahead" data-m="${Number(m)}" aria-pressed="${Number(S.cal.ahead) === m ? "true" : "false"}">${m === 60 ? "1 ч" : Number(m) + " мин"}</button>`).join("")}</div>
+    <button class="primary big" data-act="calgo">Добавить в календарь</button>
+    <button class="linkbtn" data-act="calshare" style="align-self:center">Другой способ: поделиться файлом</button>
+    ${S.calMsg ? `<div class="note good" aria-live="polite">${esc(S.calMsg)}</div>` : ""}
+    <div class="why">Перенесли дело в приложении — нажмите кнопку ещё раз, а старое событие в календаре удалите.</div>
+    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+
+/* in-app window at the start of a task, with a short sound */
+const ALERT = {ctx:null};
+function unlockSound(){ try { if (!ALERT.ctx) ALERT.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (ALERT.ctx.state === "suspended") ALERT.ctx.resume(); } catch(e) {} }
+function chime(){
+  try {
+    unlockSound(); const c = ALERT.ctx; if (!c) return;
+    [[880, 0], [1175, 0.22], [1568, 0.44]].forEach(([f, t]) => {
+      const o = c.createOscillator(), g = c.createGain(); o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, c.currentTime + t); g.gain.exponentialRampToValueAtTime(0.35, c.currentTime + t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + t + 0.5);
+      o.connect(g); g.connect(c.destination); o.start(c.currentTime + t); o.stop(c.currentTime + t + 0.55);
+    });
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  } catch(e) {}
+}
+function checkAlert(){
+  if (!S.settings.alerts || S.alert || document.visibilityState !== "visible") return;
+  const today = dkey(new Date()), nowM = nowMinutes(), seenKey = "alerted-" + today;
+  const seen = lsGet(seenKey) || {};
+  const {plan} = planFor(today);
+  for (const p of plan.placed) {
+    const t = p.t; if (t.done) continue;
+    const due = typeof seen[t.id] === "number" ? seen[t.id] : p.s;          // a number is a "remind me in 10 minutes" time
+    if (seen[t.id] === true || nowM < due || nowM > due + 15) continue;
+    S.alert = {id:t.id, date:today, s:p.s, e:p.e};
+    seen[t.id] = true; lsSet(seenKey, seen);
+    chime(); render(); return;
+  }
+}
+function alertBox(){
+  const a = S.alert; const L = a.date === S.date ? S.tasks : loadDay(a.date).tasks;
+  const t = L.find(x => x.id === a.id); if (!t) { S.alert = null; return ""; }
+  const cl = t.list || [];
+  return `<div class="scrim alertscrim"><div class="pop" role="alertdialog" aria-modal="true" aria-label="Пора начинать">
+    <div class="ring">${ICON.bell}Пора · ${hhmm(a.s)}</div>
+    <div class="row">${catIcon(t.cat)}<h3 style="flex:1">${esc(t.title)}</h3></div>
+    <div class="why">${esc(CATS[safeCat(t.cat)].short)} · ${dur(t.min)} · до ${hhmm(a.e)}</div>
+    ${cl.length ? `<div class="note good">Чек-лист: ${Number(cl.filter(x => x.d).length)} из ${Number(cl.length)}</div>` : ""}
+    <div class="pbtns"><button class="primary" data-act="alstart">Начать</button><button class="ghost" data-act="alsnooze">Через 10 мин</button><button class="ghost" data-act="alclose">Позже</button></div>
+  </div></div>`;
 }
 
 /* an inbox item that fits a free window without pushing anything else out of the day or after its lesson */
@@ -1384,7 +1535,9 @@ function render(){
   ${!S.editing && !S.showSettings && S.sheet === "inbox" ? inboxSheet() : ""}
   ${!S.editing && !S.showSettings && S.sheet === "week" ? weekSheet() : ""}
   ${!S.editing && !S.showSettings && S.sheet === "stats" ? statsSheet() : ""}
-  ${!S.editing && !S.showSettings && S.sheet === "review" ? reviewSheet() : ""}`;
+  ${!S.editing && !S.showSettings && S.sheet === "review" ? reviewSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "cal" ? calSheet() : ""}
+  ${S.alert ? alertBox() : ""}`;
 
   if (active === "title" || active === "phrase") { const el = document.getElementById(active); if (el) { el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); } }
   if (S.askingDone) { const el = document.getElementById("act-"+S.askingDone); el && el.focus({preventScroll:true}); }
@@ -1504,6 +1657,7 @@ function statsSheet(){
     <h3>Итоги недели с ${esc(fromKey(ws).toLocaleDateString("ru-RU", {day:"numeric", month:"long"}))}</h3>
     <p class="store" style="margin:0">Сделано ${Number(done)} из ${Number(total)} ${plural(total, "дела", "дел", "дел")}. Время — по факту, где вы его отмечали.</p>
     ${cats.length ? `<ul class="slist">${cats.map(c => `<li>${catIcon(c)}<span class="sn">${esc(CATS[c].name)}</span><span class="num sv">${byCat[c] ? dur(byCat[c]) : "—"} <small>из ${dur(planCat[c])}</small></span></li>`).join("")}</ul>` : `<p class="store" style="margin:0">На этой неделе пока нет дел.</p>`}
+    <button class="primary" data-act="calsheet">${ICON.cal}В календарь телефона — напоминания</button>
     <button class="ghost" data-act="settings">${ICON.gear.replace("<svg","<svg width='16' height='16' style='vertical-align:-3px;margin-right:6px'")}Настройки дня</button>
     <div class="store">${esc(storeNote)}</div>
     <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
@@ -1591,6 +1745,7 @@ function settingsSheet(){
       <label for="s-gap">Пауза между делами, мин</label><input id="s-gap" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.gap)||0}">
       <label for="s-after">После занятия (записи, проветрить), мин</label><input id="s-after" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.afterLesson)||0}">
     </div>
+    <label class="check"><input id="s-alerts" type="checkbox" ${s.alerts ? "checked" : ""}> Окно и звук, когда начинается дело (пока приложение открыто)</label>
     <div class="actions"><span></span><span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="savesettings">Сохранить</button></span></div>
     <h3>Постоянные дела</h3>
     ${S.recurring.items.length ? `<ul class="plist">${S.recurring.items.map(r => `<li>${esc(r.title)} — ${esc(daysLabel(r.days))}${r.fixed ? ", в " + esc(r.fixed) : ""}, ${dur(r.min)} <button class="linkbtn danger" style="border:0" data-act="recdel" data-id="${esc(r.id)}">убрать</button></li>`).join("")}</ul>`
@@ -1675,6 +1830,7 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
   if (e.target.id === "withprep") { S.draft.withPrep = e.target.checked; }
+  if (e.target.id === "cal-flex") { S.cal.flex = e.target.checked; render(); }
 });
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "title") { e.preventDefault(); submitDraft(); }
@@ -1685,6 +1841,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "in-new") { e.preventDefault(); document.querySelector('[data-act="inadd"]')?.click(); }
   if (e.key === "Escape" && (S.editing || S.showSettings || S.sheet)) { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.sheet = null; render(); }
 });
+document.addEventListener("pointerdown", unlockSound, {passive:true});
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
@@ -1761,10 +1918,17 @@ document.addEventListener("click", e => {
       if (act === "cladd") setTimeout(() => $("#cl-new")?.focus(), 0);
       break; }
     case "safetyrestore": safetyRestore(); break;
+    case "calsheet": S.sheet = "cal"; S.calMsg = ""; render(); break;
+    case "calkind": S.cal.kind = ["day", "week", "rec"].includes(el.dataset.k) ? el.dataset.k : "day"; S.calMsg = ""; render(); break;
+    case "calahead": S.cal.ahead = [5, 10, 30, 60].includes(Number(el.dataset.m)) ? Number(el.dataset.m) : 10; render(); break;
+    case "calgo": exportIcs(false); break;
+    case "calshare": exportIcs(true); break;
+    case "alstart": case "alclose": S.alert = null; render(); break;
+    case "alsnooze": { const a = S.alert; if (a) { const k = "alerted-" + a.date, seen = lsGet(k) || {}; seen[a.id] = nowMinutes() + 10; lsSet(k, seen); } S.alert = null; render(); break; }
     case "savesettings": {
       const st = $("#s-start").value || S.settings.dayStart, en = $("#s-end").value || S.settings.dayEnd;
       S.settings = {dayStart:st, dayEnd: toMin(en) > toMin(st) ? en : S.settings.dayEnd,
-        gap: Math.max(0, Math.min(60, Number($("#s-gap").value)||0)), afterLesson: Math.max(0, Math.min(60, Number($("#s-after").value)||0))};
+        gap: Math.max(0, Math.min(60, Number($("#s-gap").value)||0)), afterLesson: Math.max(0, Math.min(60, Number($("#s-after").value)||0)), alerts: !!($("#s-alerts") || {}).checked};
       saveSettings(); S.showSettings = false; render(); break; }
     case "backup": doBackup(); break;
     case "restore": doRestore(); break;
@@ -1804,7 +1968,8 @@ watchDay();
 SYNC.load();
 render();
 SYNC.run();
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") SYNC.run(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { SYNC.run(); checkAlert(); } });
+setInterval(checkAlert, 20000); setTimeout(checkAlert, 1500);
 window.addEventListener("online", () => SYNC.run());
 setInterval(() => { if (document.visibilityState === "visible") SYNC.run(); }, 120000);
 setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && !S.sheet && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
