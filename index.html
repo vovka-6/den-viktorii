@@ -45,7 +45,7 @@ body{margin:0} [hidden]{display:none!important} img{max-width:100%}
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
 body{color:var(--ink); font-family:var(--f-body); font-size:16px; line-height:1.45;
-  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:0 130px}
+  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:0 calc(104px + env(safe-area-inset-bottom,0px))}
 body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px); z-index:10; background:var(--bg)}
 .wrap{max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
 button,input,select{font:inherit; color:inherit}
@@ -108,31 +108,6 @@ header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; backgro
 .chip span{font-size:12.5px; color:var(--muted)}
 .chip i{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px}
 
-/* timeline */
-.sec{display:flex; flex-direction:column; gap:8px}
-.tl{display:flex; flex-direction:column; gap:6px}
-.blk{display:grid; grid-template-columns:54px 1fr; gap:10px; align-items:stretch}
-.when{font-size:14px; font-weight:700; padding-top:12px; text-align:right}
-.when small{display:block; font-weight:500; color:var(--muted); font-size:12px}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:10px 10px 10px 12px; display:flex; gap:10px; align-items:flex-start; min-width:0}
-.card .dot{width:10px; height:10px; border-radius:50%; margin-top:8px; flex:none}
-.card .body{flex:1; min-width:0}
-.card .t{font-weight:600; overflow-wrap:anywhere}
-.card .m{font-size:13px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; margin-top:2px}
-.pin{font-weight:700; color:var(--ink)}
-.done .t{text-decoration:line-through; color:var(--muted)}
-.done{opacity:.75}
-.tick{width:30px; height:30px; flex:none; border-radius:50%; border:2px solid var(--line); background:transparent; display:grid; place-items:center; margin-top:2px}
-.tick svg{width:16px; height:16px; opacity:0}
-.done .tick{background:var(--accent); border-color:var(--accent)}
-.done .tick svg{opacity:1; color:var(--accent-ink)}
-.moves{display:flex; flex-direction:column; gap:2px}
-.moves button{width:30px; height:26px; border:0; background:transparent; color:var(--muted); border-radius:8px}
-.moves button:disabled{opacity:.25}
-.gap{display:grid; grid-template-columns:54px 1fr; gap:10px}
-.gap div:last-child{border:1px dashed var(--line); border-radius:12px; padding:6px 12px; font-size:13px; color:var(--muted)}
-.now{display:grid; grid-template-columns:54px 1fr; gap:10px; align-items:center; color:var(--warn); font-size:12px; font-weight:700}
-.now div:last-child{height:2px; background:var(--warn); border-radius:2px}
 .actual{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:14px}
 .actual input{width:70px; border:1px solid var(--line); background:var(--bg); border-radius:8px; padding:6px 8px}
 .empty{background:var(--surface); border:1px dashed var(--line); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:10px}
@@ -140,10 +115,6 @@ header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; backgro
 .over .card{border-style:dashed}
 .rec{background:var(--warn); color:#fff}
 .mic{font-weight:700}
-.fab{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom,0px)); z-index:15;
-  min-width:min(330px, calc(100% - 32px)); height:68px; border-radius:999px; border:0; background:var(--accent); color:var(--accent-ink);
-  font-size:20px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:12px; box-shadow:0 8px 22px rgba(0,0,0,.28)}
-.fab svg{width:28px; height:28px}
 .listen{position:fixed; inset:auto 0 0 0; z-index:25; background:var(--surface); border-radius:22px 22px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.25);
   padding:20px max(16px, env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px));
   display:flex; flex-direction:column; gap:14px; max-width:560px; margin:0 auto}
@@ -153,7 +124,7 @@ header.day{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; backgro
 .listen .big{height:60px; font-size:19px; border-radius:16px}
 .pulse{width:14px; height:14px; border-radius:50%; background:var(--warn); flex:none}
 @media (prefers-reduced-motion: no-preference){ .pulse{animation:pulse 1.2s ease-in-out infinite} @keyframes pulse{50%{opacity:.25; transform:scale(.7)}} }
-.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(96px + env(safe-area-inset-bottom,0px)); z-index:16;
+.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(84px + env(safe-area-inset-bottom,0px)); z-index:16;
   width:min(528px, calc(100% - 32px)); background:var(--ink); color:var(--bg); border-radius:16px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .toast ul{margin:0; padding-left:18px}
 .toast .row button{background:transparent; color:var(--bg); border:1px solid rgba(255,255,255,.45); border-radius:10px; padding:7px 12px; font-weight:700}
@@ -178,6 +149,111 @@ textarea.field{resize:vertical; min-height:64px; font-family:inherit}
 .settings{display:grid; grid-template-columns:1fr auto; gap:10px 12px; align-items:center; font-size:15px}
 .store{font-size:13.5px; color:var(--muted)}
 footer{display:flex; flex-direction:column; gap:10px}
+/* v10 layout: header with week strip, "now" card, compact timeline by parts of day, bottom menu */
+header.day{gap:10px; padding-block:12px 8px}
+.top{display:flex; align-items:center; gap:8px}
+.top h1{flex:1; min-width:0; margin:0; font-family:var(--f-display); font-weight:700; font-size:clamp(20px,6vw,25px); line-height:1.15}
+.top h1 small{display:block; font-family:var(--f-body); font-weight:600; font-size:13px; color:var(--muted)}
+.top h1 small::first-letter{text-transform:uppercase}
+.pill{height:40px; padding:0 12px; border-radius:999px; border:1px solid var(--line); background:var(--surface); font-size:13.5px; font-weight:600; display:inline-flex; align-items:center; gap:6px; flex:none; white-space:nowrap}
+.pill i{width:10px; height:10px; border-radius:50%}
+.aa{width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:var(--surface); font-weight:800; font-size:14px; flex:none}
+.week{display:grid; grid-template-columns:22px repeat(7, minmax(0,1fr)) 22px; gap:4px; align-items:center}
+.week .arr{border:0; background:none; color:var(--muted); height:56px; padding:0; display:grid; place-items:center}
+.week .arr svg{width:16px; height:16px}
+.wd{height:56px; border-radius:13px; border:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:0; min-width:0}
+.wd small{font-size:11px; color:var(--muted)}
+.wd b{font-size:16px; line-height:1.1}
+.wd .dots{display:flex; gap:2px; height:5px}
+.wd .dots i{width:5px; height:5px; border-radius:50%}
+.wd.today{border:2px solid var(--accent)}
+.wd[aria-current="date"]{background:var(--ink); border-color:var(--ink); color:var(--bg)}
+.wd[aria-current="date"] small{color:var(--bg)}
+.slim{display:flex; flex-direction:column; gap:4px}
+.slim .bar{height:6px}
+.slim .txt{font-size:12.5px; color:var(--muted)}
+.slim .txt b{color:var(--ink)}
+.ic{width:34px; height:34px; border-radius:50%; display:grid; place-items:center; flex:none; color:var(--k); background:var(--surface-2); background:color-mix(in srgb, var(--k) 16%, var(--surface))}
+.ic svg{width:18px; height:18px}
+.nowcard{border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px; background:var(--surface-2); background:color-mix(in srgb, var(--k) 15%, var(--surface))}
+.nowcard .ic{background:var(--surface); width:40px; height:40px}
+.nc-top{display:flex; gap:12px; align-items:center}
+.nc-t{flex:1; min-width:0; cursor:pointer}
+.nc-t small{display:block; font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--k)}
+.nc-t b{display:block; font-family:var(--f-display); font-size:17px; line-height:1.25; overflow-wrap:anywhere}
+.nc-bar{height:8px; border-radius:4px; background:var(--surface); overflow:hidden}
+.nc-bar span{display:block; height:100%; background:var(--k)}
+.nc-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.nc-info{flex:1 1 160px; font-size:13.5px; color:var(--muted)}
+.nc-btns{display:flex; gap:8px}
+.darkbtn{height:40px; padding:0 16px; border-radius:999px; border:0; background:var(--ink); color:var(--bg); font-weight:700; font-size:14px}
+.sec{display:flex; flex-direction:column; gap:6px}
+.sec h2{margin:0; font-size:13px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:700}
+.tl{display:flex; flex-direction:column}
+.part{margin:10px 0 2px 98px; font-size:12px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:800}
+.blk{display:flex; align-items:center; gap:10px; min-height:54px}
+.when{width:44px; flex:none; font-size:13.5px; font-weight:700; text-align:right}
+.blk .body{flex:1; min-width:0; cursor:pointer; padding:6px 0}
+.blk .t{font-weight:600; font-size:15.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.blk .m{font-size:12.5px; color:var(--muted); display:flex; gap:6px; flex-wrap:wrap}
+.pin{font-weight:700; color:var(--ink)}
+.cl{font-size:12px; color:var(--muted); border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:1px 7px; flex:none}
+.done .t{text-decoration:line-through; color:var(--muted)}
+.done{opacity:.72}
+.tick{width:30px; height:30px; flex:none; border-radius:50%; border:2px solid var(--line); background:var(--surface); display:grid; place-items:center; padding:0}
+.tick svg{width:16px; height:16px; opacity:0}
+.done .tick{background:var(--accent); border-color:var(--accent)}
+.done .tick svg{opacity:1; color:var(--accent-ink)}
+.gap{margin:3px 0 3px 98px; border:1px dashed var(--line); border-radius:12px; padding:6px 12px; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px}
+.gap span{flex:1}
+.gap.sug{border-color:var(--accent); color:var(--ink)}
+.now{display:flex; align-items:center; gap:10px; color:var(--warn); font-size:12px; font-weight:700; margin:2px 0}
+.now span:first-child{width:44px; text-align:right}
+.now span:last-child{flex:1; height:2px; background:var(--warn); border-radius:2px}
+.over .blk{opacity:.85}
+.tabbar{position:fixed; left:0; right:0; bottom:0; z-index:15; background:var(--surface); border-top:1px solid var(--line);
+  padding:0 max(8px, env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(8px, env(safe-area-inset-left,0px))}
+.tabbar nav{max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); align-items:center; height:66px}
+.tab{border:0; background:none; color:var(--muted); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:11px; font-weight:600; height:58px; position:relative; padding:0}
+.tab svg{width:22px; height:22px}
+.tab[aria-current="page"]{color:var(--accent)}
+.tab .badge{position:absolute; top:4px; left:calc(50% + 6px); min-width:18px; height:18px; border-radius:9px; background:var(--warn); color:#fff; font-size:11px; font-style:normal; display:grid; place-items:center; padding:0 4px}
+.fab{justify-self:center; width:66px; height:66px; margin-top:-26px; border-radius:50%; border:4px solid var(--bg); background:var(--accent); color:var(--accent-ink); display:grid; place-items:center; padding:0; box-shadow:0 6px 16px rgba(0,0,0,.22)}
+.fab svg{width:28px; height:28px}
+.fab:disabled{opacity:.6}
+.clbox{border:1px solid var(--line); border-radius:14px; padding:10px 12px; display:flex; flex-direction:column; gap:6px}
+.clrow{display:flex; align-items:center; gap:10px; min-height:44px; border-bottom:1px solid var(--line)}
+.clchk{width:26px; height:26px; flex:none; border-radius:8px; border:2px solid var(--line); background:var(--surface); display:grid; place-items:center; padding:0}
+.clchk svg{width:14px; height:14px; opacity:0}
+.clchk[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.clchk[aria-pressed="true"] svg{opacity:1}
+.clt{flex:1; overflow-wrap:anywhere}
+.clt.dn{text-decoration:line-through; color:var(--muted)}
+.clx{width:36px; height:36px; flex:none; border:0; background:none; color:var(--muted); border-radius:10px}
+.ilist, .wlist, .slist, .rlist{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px}
+.ilist li{display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line)}
+.ilist .body, .rrow .body{flex:1; min-width:0; display:flex; flex-direction:column}
+.ilist small, .rrow small, .wh small{font-size:12.5px; color:var(--muted)}
+.wrow{width:100%; text-align:left; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:10px 12px; display:flex; flex-direction:column; gap:4px}
+.wrow.istoday{border:2px solid var(--accent)}
+.wh{display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap}
+.wt{display:flex; flex-direction:column; gap:1px; font-size:13.5px}
+.wt i{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px}
+.slist li{display:flex; align-items:center; gap:10px}
+.slist .sn{flex:1}
+.slist .sv small{color:var(--muted); font-size:12px}
+.sums{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px}
+.sums div{border-radius:14px; padding:10px; display:flex; flex-direction:column; color:var(--ink); background:var(--surface-2); background:color-mix(in srgb, var(--k) 15%, var(--surface))}
+.sums small{font-size:12px; font-weight:700; color:var(--muted)}
+.sums b{font-size:17px}
+.rrow{width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); background:none; display:flex; align-items:center; gap:10px; min-height:52px; padding:4px 0}
+.rrow .tag{font-size:13px; font-weight:700; padding:6px 10px; border-radius:14px; background:var(--surface-2); color:var(--muted)}
+.rrow[aria-pressed="true"] .tag{background:var(--accent); color:var(--accent-ink)}
+.egrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px}
+.ebtn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--surface); font-weight:600}
+.ebtn[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.sheet .big{height:54px; font-size:17px; border-radius:16px}
+
 @media (prefers-reduced-motion: no-preference){ .tick, .cat, .chip{transition:background .15s, border-color .15s} }
 </style>
 
@@ -246,7 +322,7 @@ const lsGet = k => { try { const v = localStorage.getItem(LSP+k); return v ? JSO
 const lsSet = (k,v) => { try { localStorage.setItem(LSP+k, JSON.stringify(v)); } catch(e) {} };
 /* ---------- local store (single source on the device) ---------- */
 const lsDel = k => { try { localStorage.removeItem(LSP+k); } catch(e) {} };
-const DOC_RE = /^(settings|stats|recurring|day-\d{4}-\d{2}-\d{2})$/;
+const DOC_RE = /^(settings|stats|recurring|inbox|day-\d{4}-\d{2}-\d{2})$/;
 const store = {
   mode:"local", watchers:{},
   watch(id, cb){ this.watchers[id] = cb; cb(lsGet(id)); },
@@ -265,7 +341,8 @@ function sanitizeDoc(id, d){
   if (id === "settings") return {...cleanSettings(d), _m:m};
   if (id === "stats") return {...cleanStats(d), _m:m};
   if (id === "recurring") return {...cleanRecurring(d), _m:m};
-  return {date:id.slice(4), tasks:(d && Array.isArray(d.tasks) ? d.tasks : []).map(cleanTask).filter(Boolean), skip:cleanSkip(d && d.skip), _m:m};
+  if (id === "inbox") return {...cleanInbox(d), _m:m};
+  return {date:id.slice(4), tasks:(d && Array.isArray(d.tasks) ? d.tasks : []).map(cleanTask).filter(Boolean), skip:cleanSkip(d && d.skip), ...cleanMeta(d), _m:m};
 }
 
 /* ---------- sync: one encrypted file in the owner's private GitHub repository ---------- */
@@ -353,7 +430,7 @@ const SYNC = {
       this.ok = e.kind === "offline"; this.status = e.message || "Синхронизация не удалась.";
     } finally {
       this.busy = false;
-      if (!S.editing && !S.showSettings) render();
+      if (!S.editing && !S.showSettings && !S.sheet) render();
       if (this.again) { this.again = false; this.schedule(); }
     }
   },
@@ -419,7 +496,12 @@ function loadDay(date){
   const tasks = d && Array.isArray(d.tasks) ? d.tasks.map(cleanTask).filter(Boolean) : [];
   const skip = cleanSkip(d && d.skip);
   const m = materialize(date, tasks, skip);
-  return {tasks:m.tasks, skip, changed:m.changed};
+  return {tasks:m.tasks, skip, meta:cleanMeta(d), changed:m.changed};
+}
+/* write a day other than the open one, keeping its own day settings (energy, closed) */
+function saveOtherDay(date, tasks, skip){
+  const ex = lsGet(dayId(date)) || {};
+  store.save(dayId(date), {date, tasks:tasks.map(cleanTask).filter(Boolean), skip:cleanSkip(skip !== undefined ? skip : ex.skip), ...cleanMeta(ex)});
 }
 function saveRecurring(){ store.save("recurring", S.recurring); }
 function refreshToday(){
@@ -487,7 +569,7 @@ async function voiceStart(){
 function voiceText(){ return (VOICE.final + (VOICE.partial ? (VOICE.final ? " " : "") + VOICE.partial : "")).replace(/\s+/g, " ").trim(); }
 function voiceCancel(){ voiceCleanup(); VOICE.state = "idle"; VOICE.msg = ""; VOICE.final = ""; VOICE.partial = ""; render(); }
 function snapshotFor(actions){
-  const ids = new Set(["recurring"]);
+  const ids = new Set(["recurring", "inbox"]);
   for (const a of actions) { if (a.date) ids.add(dayId(a.date)); if (a.toDate) ids.add(dayId(a.toDate)); }
   ids.add(dayId(S.date));
   const snap = {}; for (const id of ids) snap[id] = lsGet(id);
@@ -496,9 +578,10 @@ function snapshotFor(actions){
 function undoSnapshot(snap){
   for (const [id, d] of Object.entries(snap)) {
     if (id === "recurring") store.save(id, d ? {items:cleanRecurring(d).items} : {items:[]});
-    else store.save(id, d ? {date:id.slice(4), tasks:(d.tasks || []).map(cleanTask).filter(Boolean), skip:cleanSkip(d.skip)} : {date:id.slice(4), tasks:[], skip:[]});
+    else if (id === "inbox") store.save(id, cleanInbox(d));
+    else store.save(id, d ? {date:id.slice(4), tasks:(d.tasks || []).map(cleanTask).filter(Boolean), skip:cleanSkip(d.skip), ...cleanMeta(d)} : {date:id.slice(4), tasks:[], skip:[]});
   }
-  S.recurring = cleanRecurring(lsGet("recurring"));
+  S.recurring = cleanRecurring(lsGet("recurring")); S.inbox = cleanInbox(lsGet("inbox"));
   const L = loadDay(S.date); S.tasks = L.tasks; S.skip = L.skip;
 }
 async function voiceStop(){
@@ -520,8 +603,7 @@ async function voiceStop(){
     S.toast = {lines:actions.map(describe).map(x => x.replace(/^Добавить: /, "")), undo:snap, date:r.firstDate, heard:text};
     render();
   } else {
-    S.phraseText = text; S.phrase = actions; render();
-    const box = document.querySelector('[aria-label="Сказать одной фразой"]'); if (box && box.scrollIntoView) box.scrollIntoView({block:"start", behavior:"smooth"});
+    S.phraseText = text; S.phrase = actions; S.editing = null; S.showSettings = false; S.sheet = "add"; render();
   }
 }
 function showVoiceText(){ const el = document.getElementById("live-text"); if (el) el.textContent = voiceText(); }
@@ -602,7 +684,7 @@ function takeTime(s){
   else if (!part && h >= 1 && h <= 7) h += 12;                 // "в 3" during a working day means 15:00
   return {time:String(h).padStart(2,"0") + ":" + String(mi).padStart(2,"0"), rest:cut(m)};
 }
-const LEAD_FILLER = new Set(["мне","нужно","надо","необходимо","хочу","запланируй","запланировать","добавь","добавить","поставь","поставить","пожалуйста","еще","ещё","и","а","также","так","потом","затем","у","меня","будет","еще","ну"]);
+const LEAD_FILLER = new Set(["запиши","занеси","запомни","мне","нужно","надо","необходимо","хочу","запланируй","запланировать","добавь","добавить","поставь","поставить","пожалуйста","еще","ещё","и","а","также","так","потом","затем","у","меня","будет","еще","ну"]);
 const TAIL_FILLER = new Set(["в","на","к","с","и","а","пожалуйста","потом"]);
 function tidyTitle(s){
   let w = s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
@@ -692,8 +774,10 @@ function takeDeadline(s){
   }
   return null;
 }
+const INBOX_RE = /(?:^|\s)(?:во\s+входящие|в\s+входящие|когда-нибудь|когда\s+нибудь|без\s+даты|без\s+срока|не\s+срочно)(?=\s|$)/;
 function parsePhrase(text){
   let raw = spokenToDigits(String(text || "")).replace(/[«»"“”]/g, " ");
+  raw = raw.replace(/(^|\s)на\s+потом(?=[\s,.;!?]|$)/g, "$1 во входящие ");
   raw = raw.replace(new RegExp("(" + WD + ")\\s*,\\s*(?=(?:и\\s+)?(?:(?:в|во|по)\\s+)?(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень))", "g"), "$1 и ");
   const noDl = (() => { let x = raw.replace(REC_RE, " "), d; while ((d = takeDeadline(x))) x = d.rest; return x; })();
   const globalDate = takeDate(noDl).date;
@@ -702,6 +786,11 @@ function parsePhrase(text){
   let ctxDate = globalDate || S.date;
   for (const clause of clauses) {
     let c = " " + clause + " ";
+    if (INBOX_RE.test(c)) {
+      const title = tidyTitle(c.replace(new RegExp(INBOX_RE.source, "g"), " "));
+      if (title) { const e = estimate(title); actions.push({type:"inbox", title, cat:e.cat, min:e.min}); }
+      continue;
+    }
     const rec = takeRecurring(c);
     if (rec) {
       let r = rec.rest, mm;
@@ -759,6 +848,7 @@ function describe(a){
   if (a.type === "move") return `Перенести: ${a.title}${when(a.date)} → ${a.toDate !== a.date ? relLabel(a.toDate) : ""}${a.toDate !== a.date && a.toTime ? ", " : ""}${a.toTime ? "в " + a.toTime : ""}`;
   if (a.type === "done") return `Отметить сделанным: ${a.title}${when(a.date)}`;
   if (a.type === "del") return `Удалить: ${a.title}${when(a.date)}`;
+  if (a.type === "inbox") return `Во входящие: ${a.title}`;
   if (a.type === "rec") return `Постоянное дело: ${a.title} — ${daysLabel(a.days)}${a.fixed ? ", в " + a.fixed : ""}, ${dur(a.min)}${a.cat === "lesson" ? " + подготовка" : ""}`;
   if (a.type === "recdel") return `Убрать из постоянных: ${a.title} — ${daysLabel(a.days)}`;
   return `Не нашла задачу «${a.target}» — проверьте название`;
@@ -769,6 +859,7 @@ function applyActions(actions){
   let n = 0, firstDate = null, recChanged = false;
   for (const a of actions) {
     if (a.type === "rec") { addRecurring({...a, prep:a.cat === "lesson"}); recChanged = true; n++; continue; }
+    if (a.type === "inbox") { S.inbox = {items:[...S.inbox.items, {id:uid(), title:a.title, cat:safeCat(a.cat), min:r5(a.min)}]}; saveInbox(); n++; continue; }
     if (a.type === "recdel") {
       const it = S.recurring.items.find(r => r.id === a.id); if (!it) continue;
       const left = it.days.filter(x => !a.days.includes(x));
@@ -796,7 +887,7 @@ function applyActions(actions){
   }
   for (const [d, list] of Object.entries(days)) {
     if (d === S.date) { S.tasks = list; S.skip = skips[d]; saveDay(); }
-    else store.save(dayId(d), {date:d, tasks:list, skip:skips[d]});
+    else saveOtherDay(d, list, skips[d]);
   }
   if (recChanged) refreshToday();
   return {n, firstDate};
@@ -814,7 +905,8 @@ const S = {
   showSettings: false,
   sample: null, aiBusy:false, aiMsg:"",
   phraseText:"", phrase:null, syncMsg:"", syncBusy:false,
-  recurring:{items:[]}, skip:[], editDays:[]
+  recurring:{items:[]}, skip:[], editDays:[],
+  inbox:{items:[]}, meta:{energy:"ok", closed:false}, sheet:null, reviewSeen:"", reviewKeep:{}, reviewEnergy:"ok"
 };
 const dayId = k => "day-" + k;
 
@@ -822,13 +914,21 @@ function watchDay(){
   store.watch(dayId(S.date), d => {
     const tasks = (d && Array.isArray(d.tasks)) ? d.tasks.map(cleanTask).filter(Boolean) : [];
     S.skip = cleanSkip(d && d.skip);
+    const meta = cleanMeta(d); S.meta = {energy:meta.energy || "ok", closed:!!meta.closed};
     const m = materialize(S.date, tasks, S.skip);
     S.tasks = m.tasks; S.dayLoaded = true;
     if (m.changed) saveDay();
     render();
   });
 }
-function saveDay(){ store.save(dayId(S.date), {date:S.date, tasks:S.tasks, skip:S.skip}); }
+function saveDay(){ store.save(dayId(S.date), {date:S.date, tasks:S.tasks.map(cleanTask).filter(Boolean), skip:S.skip, ...cleanMeta(S.meta)}); }
+function saveInbox(){ store.save("inbox", S.inbox); }
+function addInbox(title){ const e = estimate(title); S.inbox = {items:[...S.inbox.items, {id:uid(), title:title.trim().slice(0, 200), cat:safeCat(e.cat), min:r5(e.min)}]}; saveInbox(); }
+function inboxToDay(id, fixed){
+  const it = S.inbox.items.find(x => x.id === id); if (!it) return;
+  S.tasks.push({id:uid(), title:it.title, cat:it.cat, min:it.min, fixed:TIME_RE.test(fixed) ? fixed : "", done:false});
+  S.inbox = {items:S.inbox.items.filter(x => x.id !== id)}; saveInbox(); saveDay();
+}
 function saveStats(){ store.save("stats", S.stats); }
 function saveSettings(){ store.save("settings", S.settings); }
 
@@ -874,7 +974,27 @@ function cleanTask(t){
   if (DATE_RE_T.test(t.due)) out.due = t.due;
   const rid = String(t.rid || "").replace(/[^a-z0-9]/gi, "").slice(0, 20);
   if (rid) { out.rid = rid; if (t.custom) out.custom = true; }
+  if (Array.isArray(t.list)) {
+    const list = t.list.slice(0, 30).map(x => x && typeof x === "object" ? {t:String(x.t || "").slice(0, 120).trim(), d:!!x.d} : null).filter(x => x && x.t);
+    if (list.length) out.list = list;
+  }
   return out;
+}
+function cleanMeta(d){
+  const out = {};
+  if (d && (d.energy === "good" || d.energy === "tired")) out.energy = d.energy;
+  if (d && d.closed) out.closed = true;
+  return out;
+}
+function cleanInbox(d){
+  const items = [];
+  for (const x of (d && Array.isArray(d.items) ? d.items : []).slice(0, 200)) {
+    if (!x || typeof x !== "object") continue;
+    const id = String(x.id || "").replace(/[^a-z0-9]/gi, "").slice(0, 16), title = String(x.title || "").slice(0, 200).trim();
+    if (!id || !title) continue;
+    items.push({id, title, cat:safeCat(x.cat), min:r5(clampNum(x.min, 5, 600, 30))});
+  }
+  return {items};
 }
 const cleanSkip = a => Array.isArray(a) ? a.map(x => String(x).replace(/[^a-z0-9]/gi, "").slice(0, 20)).filter(Boolean).slice(0, 200) : [];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -920,7 +1040,8 @@ function learn(task, actual){
 /* ---------- scheduling ---------- */
 function schedule(){
   const st = S.settings, start = toMin(st.dayStart), end = toMin(st.dayEnd);
-  const gap = Number(st.gap)||0, after = Number(st.afterLesson)||0;
+  const tired = S.meta.energy === "tired";                // gentle day: longer pauses
+  const gap = (Number(st.gap)||0) + (tired ? 10 : 0), after = (Number(st.afterLesson)||0) + (tired ? 5 : 0);
   const tail = t => gap + (t.cat === "lesson" ? after : 0);
   const fixed = S.tasks.filter(t => t.fixed).map(t => ({t, s:toMin(t.fixed), e:toMin(t.fixed)+t.min})).sort((a,b) => a.s-b.s);
   const flex = S.tasks.filter(t => !t.fixed);
@@ -997,7 +1118,7 @@ function analyse(plan){
   const lessons = S.tasks.filter(t => t.cat === "lesson").length;
   const preps = S.tasks.filter(t => t.cat === "prep").length;
   if (lessons > 0 && preps === 0) notes.push({warn:true, text:`${lessons} ${plural(lessons,"занятие","занятия","занятий")}, но нет подготовки. Обычно на одно занятие уходит 15–20 минут подготовки.`});
-  if (!notes.length && S.tasks.length) notes.push({warn:false, text: total <= avail ? `День сбалансирован: свободно ${dur(Math.max(0, avail - total - S.tasks.length*(Number(S.settings.gap)||0)))}.` : "План собран."});
+  if (S.meta.energy === "tired" && S.date >= dkey(new Date()) && S.tasks.some(t => !t.done)) notes.push({warn:false, text:"Бережный день: между делами добавлено по 10 минут. Если не успеваете — перенесите часть дел на завтра."});
   return {notes, total, avail, work, rest};
 }
 
@@ -1021,14 +1142,16 @@ function submitDraft(){
     S.tasks.push({id:uid(), title:"Подготовка: " + d.title.trim(), cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false});
   }
   addTask(d.title, d.cat, d.min, d.fixed);
+  S.flash = `Добавлено: ${d.title.trim()}`;
   S.draft = {title:"", cat:null, min:null, fixed:"", catManual:false, minManual:false, withPrep:true, ai:null, why:""};
-  S.aiMsg = "";
-  saveDay(); render(); $("#title")?.focus();
+  S.aiMsg = ""; S.sheet = null;
+  saveDay(); render();
 }
 function addPreset(i){
   const [title, cat] = PRESETS[i];
   const e = estimate(title);
   addTask(title, cat, e.min, "");
+  S.flash = `Добавлено: ${title}`; S.sheet = null;
   saveDay(); render();
 }
 function toggleDone(id){
@@ -1051,20 +1174,6 @@ function move(id, dir){
   saveDay(); render();
 }
 function goDate(k){ store.unwatch(dayId(S.date)); S.dayLoaded = false; S.date = k; S.askingDone = null; watchDay(); render(); window.scrollTo({top:0}); }
-async function carryOver(){
-  const left = S.tasks.filter(t => !t.done);
-  if (!left.length) return;
-  const next = addDays(S.date, 1);
-  const existing = (lsGet(dayId(next)) || {}).tasks || [];
-  let nextTasks = existing;
-  const moved = left.map(t => { const c = {...t, id:uid(), fixed:""}; delete c.rid; delete c.custom; return c; });
-  left.forEach(t => { if (t.rid) S.skip.push(t.rid); });
-  await store.save(dayId(next), {date:next, tasks:[...nextTasks.map(t => ({...t})), ...moved]});
-  S.tasks = S.tasks.filter(t => t.done);
-  saveDay();
-  S.flash = `Перенесено на завтра: ${moved.length}`;
-  render();
-}
 function fillExample(){
   [["Занятие с ребёнком (пример)","lesson",45,"10:00"],["Занятие с ребёнком (пример)","lesson",45,"11:00"],
    ["Подготовка к занятиям (пример)","prep",30,""],["Пост в ВК про визуальное расписание (пример)","blog",60,""],
@@ -1081,8 +1190,105 @@ const ICON = {
   tick:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
   up:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>',
   mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>',
-  down:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>'
+  down:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>',
+  today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v14H4zM4 10h16M9 3v4M15 3v4"/></svg>',
+  week:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v15H4zM4 10h16M10 10v10M16 10v10"/></svg>',
+  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5"/></svg>',
+  stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>'
 };
+const CAT_ICON = {
+  lesson:'<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/>',
+  prep:'<path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/>',
+  work:'<path d="M4 8h16v11H4zM9 8V5h6v3"/>',
+  blog:'<path d="M4 5h16v11H8l-4 4z"/>',
+  home:'<path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6"/>',
+  rest:'<path d="M5 19C5 10 11 5 19 5c0 8-5 14-14 14zM5 19l7-7"/>',
+  other:'<circle cx="12" cy="12" r="6"/>'
+};
+function catIcon(c){
+  return `<span class="ic" style="--k:${color(c)}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${CAT_ICON[safeCat(c)]}</svg></span>`;
+}
+const ENERGY = {ok:["Силы: норм.", "var(--c-prep)"], good:["Силы: бодро", "var(--c-rest)"], tired:["Силы: устала", "var(--c-home)"]};
+const ENERGY_NEXT = {ok:"good", good:"tired", tired:"ok"};
+const nowMinutes = () => { const d = new Date(); return d.getHours()*60 + d.getMinutes(); };
+const weekStart = k => { const dow = fromKey(k).getDay(); return addDays(k, -((dow + 6) % 7)); };
+const dayTitle = k => { const d = fromKey(k); return `${DOW_SHORT[d.getDay()]}, ${d.toLocaleDateString("ru-RU", {day:"numeric", month:"long"})}`; };
+const listCount = t => { const L = t.list || []; return L.length ? `${L.filter(x => x.d).length}/${L.length}` : ""; };
+
+function weekStrip(){
+  const today = dkey(new Date()), ws = weekStart(S.date);
+  let cells = "";
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(ws, i), d = fromKey(k);
+    const tasks = k === S.date ? S.tasks : loadDay(k).tasks;
+    const cats = CAT_ORDER.filter(c => tasks.some(t => t.cat === c)).slice(0, 3);
+    cells += `<button class="wd${k === today ? " today" : ""}" data-act="go" data-date="${esc(k)}" ${k === S.date ? 'aria-current="date"' : ""} aria-label="${esc(d.toLocaleDateString("ru-RU", {weekday:"long", day:"numeric", month:"long"}))}${tasks.length ? ", дел: " + Number(tasks.length) : ""}">
+      <small>${esc(DOW_SHORT[d.getDay()])}</small><b class="num">${Number(d.getDate())}</b><span class="dots">${cats.map(c => `<i style="background:${color(c)}"></i>`).join("")}</span></button>`;
+  }
+  return `<div class="week" role="group" aria-label="Неделя">
+    <button class="arr" data-act="prevweek" aria-label="Предыдущая неделя">${ICON.left}</button>${cells}<button class="arr" data-act="nextweek" aria-label="Следующая неделя">${ICON.right}</button></div>`;
+}
+
+function nowCard(plan){
+  if (S.date !== dkey(new Date())) return "";
+  const nowM = nowMinutes();
+  const cur = plan.placed.find(p => !p.t.done && p.s <= nowM && nowM < p.e);
+  const next = plan.placed.find(p => !p.t.done && p.s > nowM && (!cur || p.t.id !== cur.t.id));
+  if (cur) {
+    const t = cur.t, L = t.list || [], pct = Math.max(0, Math.min(100, (nowM - cur.s) / Math.max(1, cur.e - cur.s) * 100));
+    return `<section class="nowcard" style="--k:${color(t.cat)}" aria-label="Сейчас">
+      <div class="nc-top">${catIcon(t.cat)}<div class="nc-t" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><small>Сейчас · осталось ${dur(Math.max(1, cur.e - nowM))}</small><b>${esc(t.title)}</b></div></div>
+      <div class="nc-bar" role="img" aria-label="Пройдено ${Number(Math.round(pct))}%"><span style="width:${pct.toFixed(1)}%"></span></div>
+      <div class="nc-row"><span class="nc-info">${L.length ? `Чек-лист ${Number(L.filter(x => x.d).length)} из ${Number(L.length)}` : esc(CATS[safeCat(t.cat)].short)}${next ? ` · дальше: ${esc(next.t.title)} в ${hhmm(next.s)}` : ""}</span>
+        <span class="nc-btns"><button class="pill" data-act="plus10" data-id="${esc(t.id)}">+10 мин</button><button class="darkbtn" data-act="done" data-id="${esc(t.id)}">Готово</button></span></div>
+    </section>`;
+  }
+  if (next) {
+    const t = next.t;
+    return `<section class="nowcard" style="--k:${color(t.cat)}" aria-label="Дальше">
+      <div class="nc-top">${catIcon(t.cat)}<div class="nc-t" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><small>Дальше · через ${dur(next.s - nowM)}</small><b>${esc(t.title)}</b></div></div>
+      <div class="nc-row"><span class="nc-info">в ${hhmm(next.s)} · ${esc(CATS[safeCat(t.cat)].short)} · ${dur(t.min)}${listCount(t) ? " · чек-лист " + esc(listCount(t)) : ""}</span></div>
+    </section>`;
+  }
+  return "";
+}
+
+/* an inbox item that fits a free window without pushing anything else out of the day or after its lesson */
+function slotFor(from, to, plan){
+  const gapSet = Number(S.settings.gap) || 0;
+  for (const it of S.inbox.items) {
+    if (it.min + gapSet > to - from) continue;
+    for (const at of [from, Math.floor((to - gapSet - it.min) / 5) * 5]) {
+      if (at < from || at + it.min > to) continue;
+      const probe = {id:"probe", title:it.title, cat:it.cat, min:it.min, fixed:hhmm(at), done:false};
+      S.tasks.push(probe);
+      let p2; try { p2 = schedule(); } finally { S.tasks.pop(); }
+      if (p2.over.length <= plan.over.length && p2.late.size <= plan.late.size && !p2.clash.has("probe")) return {it, at};
+    }
+  }
+  return null;
+}
+function reviewDue(){
+  if (S.date !== dkey(new Date()) || S.meta.closed || !S.tasks.length) return false;
+  const nowM = nowMinutes();
+  return nowM >= toMin(S.settings.dayEnd) || (nowM >= 17*60 && S.tasks.every(t => t.done));
+}
+
+function taskRow(t, s, e, plan){
+  const clash = plan.clash.has(t.id), lc = listCount(t);
+  return `<div class="blk${t.done ? " done" : ""}">
+    <div class="when num">${s === null ? "—" : hhmm(s)}</div>
+    ${catIcon(t.cat)}
+    <div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0">
+      <div class="t">${esc(t.title)}</div>
+      <div class="m"><span>${esc(CATS[safeCat(t.cat)].short)} · <span class="num">${dur(t.min)}</span></span>${t.fixed ? `<span class="pin">в ${esc(t.fixed)}</span>` : ""}${t.rid ? `<span title="Постоянное дело">↻</span>` : ""}${t.due ? `<span class="due">срок: ${esc(relLabel(t.due))}</span>` : ""}${t.actual ? `<span class="num">факт ${dur(t.actual)}</span>` : ""}${clash ? `<span style="color:var(--warn);font-weight:700">пересекается</span>` : ""}</div>
+      ${S.askingDone === t.id ? `<div class="actual" data-stop="1">Сколько заняло? <input id="act-${esc(t.id)}" type="number" inputmode="numeric" min="1" max="600" value="${Number(t.min)||30}" aria-label="Минут на самом деле"> мин
+         <button class="ghost" data-act="actual" data-id="${esc(t.id)}">Сохранить</button><button class="linkbtn" data-act="skipactual">Не важно</button></div>` : ""}
+    </div>
+    ${lc ? `<span class="cl num" aria-label="Чек-лист ${esc(lc)}">${esc(lc)}</span>` : ""}
+    <button class="tick" data-act="done" data-id="${esc(t.id)}" aria-label="${t.done ? "Отметить как не сделано" : "Отметить как сделано"}">${ICON.tick}</button>
+  </div>`;
+}
 
 function render(){
   const app = $("#app");
@@ -1090,172 +1296,283 @@ function render(){
   const caret = (active === "title" || active === "phrase") ? document.getElementById(active).selectionStart : null;
   const plan = schedule(), A = analyse(plan);
   const today = dkey(new Date());
-  const dateObj = fromKey(S.date);
-  const wd = dateObj.toLocaleDateString("ru-RU", {weekday:"long"});
-  const dm = dateObj.toLocaleDateString("ru-RU", {day:"numeric", month:"long"});
-  const rel = S.date === today ? "Сегодня" : S.date === addDays(today,1) ? "Завтра" : S.date === addDays(today,-1) ? "Вчера" : wd;
+  const rel = S.date === today ? "Сегодня" : S.date === addDays(today,1) ? "Завтра" : S.date === addDays(today,-1) ? "Вчера" : fromKey(S.date).toLocaleDateString("ru-RU", {weekday:"long"});
   const byCat = {}; S.tasks.forEach(t => byCat[t.cat] = (byCat[t.cat]||0) + t.min);
   const denom = Math.max(A.avail, A.total);
   const bar = CAT_ORDER.filter(c => byCat[c]).map(c => `<span style="width:${(byCat[c]/denom*100).toFixed(2)}%;background:${color(c)}" title="${esc(CATS[c].name)}"></span>`).join("");
-  const legend = CAT_ORDER.filter(c => byCat[c]).map(c => `<span><i style="background:${color(c)}"></i>${esc(CATS[c].short)} ${dur(byCat[c])}</span>`).join("");
 
-  const d = S.draft;
-  const draftCats = CAT_ORDER.map(c => `<button class="cat" data-act="cat" data-cat="${esc(c)}" aria-pressed="${d.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("");
+  // automatic evening review, once a day
+  if (reviewDue() && S.reviewSeen !== S.date && !S.sheet && !S.editing && !S.showSettings && VOICE.state === "idle") { S.reviewSeen = S.date; openReview(); }
 
-  // timeline
+  // timeline: morning / day / evening
   let tl = "";
-  const nowMin = S.date === today ? (new Date().getHours()*60 + new Date().getMinutes()) : null;
-  let cursor = plan.start, nowShown = false;
-  const flexIds = S.tasks.filter(t => !t.fixed).map(t => t.id);
-  const nowRowHtml = () => `<div class="now" aria-label="Сейчас"><div class="num">${hhmm(nowMin)}</div><div></div></div>`;
+  const nowMin = S.date === today ? nowMinutes() : null;
+  let cursor = plan.start, nowShown = false, part = "", suggested = false;
+  const partOf = m => m < 12*60 ? "Утро" : m < 17*60 ? "День" : "Вечер";
+  const nowRowHtml = () => `<div class="now" aria-label="Сейчас"><span class="num">${hhmm(nowMin)}</span><span></span></div>`;
+  const gapSet = Number(S.settings.gap) || 0;
   for (const p of plan.placed) {
-    if (nowMin !== null && !nowShown && nowMin < p.s && nowMin >= plan.start) { tl += `${nowRowHtml()}`; nowShown = true; }
-    if (p.s - cursor >= 20) tl += `<div class="gap"><div></div><div>свободно ${dur(p.s - cursor)}</div></div>`;
-    const t = p.t, fi = flexIds.indexOf(t.id);
-    const clash = plan.clash.has(t.id);
-    tl += `<div class="blk${t.done?" done":""}">
-      <div class="when num">${hhmm(p.s)}<small>${hhmm(p.e)}</small></div>
-      <div class="card">
-        <button class="tick" data-act="done" data-id="${esc(t.id)}" aria-label="${t.done?"Отметить как не сделано":"Отметить как сделано"}">${ICON.tick}</button>
-        <div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0">
-          <div class="t">${esc(t.title)}</div>
-          <div class="m"><span>${esc(CATS[t.cat]?.short || "Другое")}</span><span class="num">${dur(t.min)}</span>${t.fixed?`<span class="pin">в ${esc(t.fixed)}</span>`:""}${t.rid?`<span title="Постоянное дело">↻ постоянное</span>`:""}${t.due?`<span class="due">срок: ${esc(relLabel(t.due))}</span>`:""}${t.actual?`<span class="num">факт ${dur(t.actual)}</span>`:""}${clash?`<span style="color:var(--warn);font-weight:700">пересекается</span>`:""}</div>
-          ${S.askingDone===t.id ? `<div class="actual" data-stop="1">Сколько заняло? <input id="act-${esc(t.id)}" type="number" inputmode="numeric" min="1" max="600" value="${Number(t.min)||30}" aria-label="Минут на самом деле"> мин
-             <button class="ghost" data-act="actual" data-id="${esc(t.id)}">Сохранить</button><button class="linkbtn" data-act="skipactual">Не важно</button></div>` : ""}
-        </div>
-        <span class="dot" style="background:${color(t.cat)}"></span>
-        ${t.fixed ? "" : `<div class="moves"><button data-act="up" data-id="${esc(t.id)}" aria-label="Раньше" ${fi<=0?"disabled":""}>${ICON.up}</button><button data-act="down" data-id="${esc(t.id)}" aria-label="Позже" ${fi>=flexIds.length-1?"disabled":""}>${ICON.down}</button></div>`}
-      </div></div>`;
+    const pp = partOf(p.s);
+    if (pp !== part) { part = pp; tl += `<h3 class="part">${esc(pp)}</h3>`; }
+    if (nowMin !== null && !nowShown && nowMin < p.s && nowMin >= plan.start) { tl += nowRowHtml(); nowShown = true; }
+    if (p.s - cursor >= 20) {
+      const gs = nowMin !== null ? Math.max(cursor, Math.ceil(nowMin/5)*5) : cursor, len = p.s - gs;
+      const fit = (!suggested && S.date >= today && len >= 20) ? slotFor(gs, p.s, plan) : null;
+      if (fit) { suggested = true; tl += `<div class="gap sug"><span>Окно ${dur(len)} · «${esc(fit.it.title)}»</span><button class="linkbtn" data-act="inslot" data-id="${esc(fit.it.id)}" data-at="${esc(hhmm(fit.at))}">Вставить</button></div>`; }
+      else tl += `<div class="gap"><span>свободно ${dur(p.s - cursor)}</span></div>`;
+    }
+    tl += taskRow(p.t, p.s, p.e, plan);
     cursor = Math.max(cursor, p.e);
   }
-  if (nowMin !== null && !nowShown && nowMin >= plan.start && nowMin <= plan.end && plan.placed.length) tl += `${nowRowHtml()}`;
-  if (plan.placed.length && plan.end - cursor >= 20) tl += `<div class="gap"><div></div><div>до ${hhmm(plan.end)} свободно ${dur(plan.end - cursor)}</div></div>`;
-  const overHtml = plan.over.map(t => `<div class="blk over"><div class="when"></div><div class="card"><span class="dot" style="background:${color(t.cat)}"></span><div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><div class="t">${esc(t.title)}</div><div class="m"><span>${esc(CATS[t.cat]?.short||"Другое")}</span><span class="num">${dur(t.min)}</span></div></div></div></div>`).join("");
+  if (nowMin !== null && !nowShown && nowMin >= plan.start && nowMin <= plan.end && plan.placed.length) tl += nowRowHtml();
+  if (plan.placed.length && plan.end - cursor >= 20) tl += `<div class="gap"><span>до ${hhmm(plan.end)} свободно ${dur(plan.end - cursor)}</span></div>`;
+  const overHtml = plan.over.map(t => taskRow(t, null, null, plan)).join("");
 
   const empty = !S.tasks.length ? `<div class="empty"><b>На ${S.date===today?"сегодня":"этот день"} пока ничего нет</b>
-      <p>Нажмите большую кнопку «Сказать задачу» внизу и скажите, например: «завтра в десять занятие с Мишей» или «до пятницы сделать пособие». Приложение само поставит задачу на нужный день и время.</p>
+      <p>Нажмите микрофон внизу и скажите, например: «завтра в десять занятие с Мишей» или «до пятницы сделать пособие». Написать текстом — кнопка «Аа» вверху.</p>
       <button class="linkbtn" data-act="example">Показать пример дня</button></div>` : "";
-
-  const leftCount = S.tasks.filter(t => !t.done).length;
-  const lb = lsGet("lastBackup");
-  const storeNote = SYNC.enabled()
-    ? `Данные хранятся на этом устройстве и в зашифрованном виде синхронизируются с вашим закрытым репозиторием. ${SYNC.status || "Синхронизация…"}`
-    : "Все данные хранятся только на этом устройстве и никуда не отправляются. " +
-      (lb ? `Последняя резервная копия: ${fromKey(lb).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}.` : "Сделайте резервную копию в настройках — на случай очистки браузера или смены телефона.");
+  const reviewBtn = reviewDue() ? `<button class="ghost" data-act="review">Подвести итог дня</button>` : (S.date === today && S.meta.closed ? `<div class="store">День закрыт. Невыполненное перенесено на завтра.</div>` : "");
+  const en = ENERGY[S.meta.energy] || ENERGY.ok;
+  const sheetOpen = !!(S.sheet || S.editing || S.showSettings);
 
   app.innerHTML = `
   <header class="day">
-    <div class="dayrow">
-      <button class="iconbtn" data-act="prev" aria-label="Предыдущий день">${ICON.left}</button>
-      <h1><small>${esc(rel)}</small>${esc(rel===wd?dm:`${wd}, ${dm}`)}</h1>
-      ${S.date!==today?`<button class="todaybtn" data-act="today">Сегодня</button>`:""}
-      <button class="iconbtn" data-act="next" aria-label="Следующий день">${ICON.right}</button>
+    <div class="top">
+      <h1><small>${esc(rel)}</small>${esc(dayTitle(S.date))}</h1>
+      ${S.date === today ? `<button class="pill" data-act="energy" aria-label="Как силы сегодня: ${esc(en[0].replace("Силы: ", ""))}. Нажмите, чтобы изменить"><i style="background:${en[1]}"></i>${esc(en[0])}</button>`
+        : `<button class="pill" data-act="today">Сегодня</button>`}
+      <button class="aa" data-act="addsheet" aria-label="Написать задачу текстом">Аа</button>
     </div>
-    <div class="load">
-      <div class="loadtext"><span>Запланировано <b class="num">${dur(A.total)}</b> из <span class="num">${dur(A.avail)}</span></span><span class="num">${esc(S.settings.dayStart)}–${esc(S.settings.dayEnd)}</span></div>
-      <div class="bar" role="img" aria-label="Распределение времени по видам дел">${bar}</div>
-      ${legend?`<div class="legend">${legend}</div>`:""}
-    </div>
+    ${weekStrip()}
+    ${S.tasks.length ? `<div class="slim"><div class="bar" role="img" aria-label="Распределение времени по видам дел">${bar}</div><span class="txt">Занято <b class="num">${dur(A.total)}</b> из <span class="num">${dur(A.avail)}</span> · ${esc(S.settings.dayStart)}–${esc(S.settings.dayEnd)}</span></div>` : ""}
   </header>
 
-  ${S.flash?`<div class="notes"><div class="note good">${esc(S.flash)}</div></div>`:""}
-  ${tomorrowCard()}
-
-  <section class="add" aria-label="Сказать одной фразой">
-    <label class="big" for="phrase">Написать одной фразой</label>
-    <textarea id="phrase" class="field" rows="2" placeholder="Например: «завтра в 10 занятие с Мишей, потом пост в ВК». Голосом — большая кнопка внизу">${esc(S.phraseText)}</textarea>
-    ${S.tasks.length > 3 ? "" : `<div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Постоянные дела: «каждый понедельник и пятницу в 10 занятие с Мишей».</div>`}
-    ${S.phrase ? `<div class="suggest" aria-live="polite">
-      ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
-      <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
-      : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
-    </div>` : `<div class="row">
-      <button class="primary" data-act="parse">Разобрать фразу</button>
-      ${S.phraseText.trim() ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>`}
-  </section>
-
-  ${A.notes.length?`<div class="notes">${A.notes.map(n => `<div class="note${n.warn?"":" good"}">${esc(n.text)}</div>`).join("")}</div>`:""}
+  ${S.flash ? `<div class="notes"><div class="note good">${esc(S.flash)}</div></div>` : ""}
+  ${nowCard(plan)}
+  ${dueNote()}
+  ${A.notes.length ? `<div class="notes">${A.notes.map(n => `<div class="note${n.warn ? "" : " good"}">${esc(n.text)}</div>`).join("")}</div>` : ""}
 
   <section class="sec" aria-label="План дня">
-    <h2>План дня</h2>
     ${empty}
     <div class="tl">${tl}</div>
   </section>
+  ${plan.over.length ? `<section class="sec"><h2>Не помещается в день</h2><div class="tl">${overHtml}</div></section>` : ""}
+  ${reviewBtn}
+  ${tomorrowCard()}
 
-  ${plan.over.length?`<section class="sec"><h2>Не помещается в день</h2><div class="tl">${overHtml}</div></section>`:""}
-
-  <section class="add" aria-label="Новая задача">
-    <label class="big" for="title">Добавить задачу вручную</label>
-    <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
-    ${d.title.trim() ? `<div class="suggest">
-      <div class="estimate">
-        <button class="step" data-act="min" data-d="-15">−15</button><button class="step" data-act="min" data-d="-5">−5</button>
-        <span class="mins num" aria-live="polite">${dur(d.min||30)}</span>
-        <button class="step" data-act="min" data-d="5">+5</button><button class="step" data-act="min" data-d="15">+15</button>
-      </div>
-      <div class="why">${esc(d.why||"")}</div>
-      <div class="cats" role="group" aria-label="Вид дела">${draftCats}</div>
-      <div class="row"><label for="fixed">Точное время</label><input id="fixed" class="time" type="time" value="${esc(d.fixed)}">${d.fixed?`<button class="linkbtn" data-act="clearfixed">убрать</button>`:`<span class="why">или впишем в свободное окно</span>`}</div>
-      ${d.cat==="lesson"?`<label class="check"><input id="withprep" type="checkbox" ${d.withPrep?"checked":""}> Добавить подготовку к этому занятию</label>`:""}
-      <div class="row"><button class="primary" data-act="add">Добавить в план</button></div>
-    </div>` : ""}
-  </section>
-
-  <section class="presets" aria-label="Быстро добавить">
-    <h2>Быстро добавить</h2>
-    <div class="chips">${PRESETS.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p[1])}"></i>${esc(p[0])}</b><span class="num">${dur(estimate(p[0]).min)}</span></button>`).join("")}</div>
-  </section>
-
-  <footer>
-    ${leftCount && S.tasks.length ? `<button class="ghost" data-act="carry">Перенести невыполненное на завтра (${Number(leftCount)})</button>` : ""}
-    <button class="ghost" data-act="settings">${ICON.gear.replace("<svg","<svg width='16' height='16' style='vertical-align:-3px;margin-right:6px'")}Настройки дня</button>
-    <div class="store">${esc(storeNote)}</div>
-  </footer>
-  ${VOICE.state === "idle" && !S.editing && !S.showSettings ? `<button class="fab" data-act="voice" aria-label="Сказать задачу голосом">${ICON.mic}<span>Сказать задачу</span></button>` : ""}
+  <div class="tabbar"><nav aria-label="Меню">
+    <button class="tab" data-act="tabtoday" ${S.date === today && !sheetOpen ? 'aria-current="page"' : ""}>${ICON.today}<span>Сегодня</span></button>
+    <button class="tab" data-act="tabweek" ${S.sheet === "week" ? 'aria-current="page"' : ""}>${ICON.week}<span>Неделя</span></button>
+    <button class="fab" data-act="voice" aria-label="Сказать задачу голосом" ${VOICE.state !== "idle" ? "disabled" : ""}>${ICON.mic}</button>
+    <button class="tab" data-act="tabinbox" ${S.sheet === "inbox" ? 'aria-current="page"' : ""}>${ICON.inbox}<span>Входящие</span>${S.inbox.items.length ? `<i class="badge num">${Number(S.inbox.items.length)}</i>` : ""}</button>
+    <button class="tab" data-act="tabstats" ${S.sheet === "stats" ? 'aria-current="page"' : ""}>${ICON.stats}<span>Итоги</span></button>
+  </nav></div>
   ${S.toast && VOICE.state === "idle" ? `<div class="toast" role="status"><b>Добавлено в план:</b><ul>${S.toast.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
     <div class="row">${S.toast.date && S.toast.date !== S.date ? `<button data-act="toastopen">Открыть ${esc(relLabel(S.toast.date))}</button>` : ""}<button data-act="toastundo">Отменить</button><button data-act="toastclose" aria-label="Закрыть">✕</button></div></div>` : ""}
   ${VOICE.state !== "idle" ? `<div class="listen" role="dialog" aria-label="Голосовой ввод">
     <h3>${VOICE.state === "listening" ? `<span class="pulse"></span>Говорите…` : VOICE.state === "error" ? "Не получилось" : "Подождите…"}</h3>
     ${VOICE.state === "listening" || VOICE.state === "finishing" ? `<div class="live" id="live-text" aria-live="polite">${esc(voiceText())}</div>
-      <div class="why">Например: «завтра в десять занятие с Мишей», «до пятницы сделать пособие», «каждую среду в пять занятие с Аней».</div>` : ""}
+      <div class="why">Например: «завтра в десять занятие с Мишей», «до пятницы сделать пособие», «на потом купить ламинатор».</div>` : ""}
     ${VOICE.msg ? `<div class="why" aria-live="polite">${esc(VOICE.msg)}</div>` : ""}
     <div class="row">${VOICE.state === "listening" ? `<button class="primary big" data-act="voicestop" style="flex:1">Готово</button>` : ""}
       ${VOICE.state === "error" ? `<button class="primary big" data-act="voice" style="flex:1">Попробовать ещё раз</button>` : ""}
       <button class="ghost big" data-act="voicecancel">${VOICE.state === "error" ? "Закрыть" : "Отмена"}</button></div>
   </div>` : ""}
   ${S.editing ? editSheet() : ""}
-  ${S.showSettings ? settingsSheet() : ""}`;
+  ${S.showSettings ? settingsSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "add" ? addSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "inbox" ? inboxSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "week" ? weekSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "stats" ? statsSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "review" ? reviewSheet() : ""}`;
 
   if (active === "title" || active === "phrase") { const el = document.getElementById(active); if (el) { el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); } }
   if (S.askingDone) { const el = document.getElementById("act-"+S.askingDone); el && el.focus({preventScroll:true}); }
 }
 
+function dueNote(){
+  const today = dkey(new Date());
+  if (S.date !== today) return "";
+  const tmr = addDays(today, 1);
+  const dueSoon = S.tasks.filter(t => !t.done && t.due && t.due <= tmr);
+  return dueSoon.length ? `<div class="notes"><div class="note"><span><b>До завтра нужно сделать:</b> ${dueSoon.map(t => esc(t.title)).join(", ")}</span></div></div>` : "";
+}
 function tomorrowCard(){
   const today = dkey(new Date());
   if (S.date !== today) return "";
   const tmr = addDays(today, 1);
   const list = loadDay(tmr).tasks.filter(t => !t.done);
-  const dueSoon = S.tasks.filter(t => !t.done && t.due && t.due <= tmr);
-  if (!list.length && !dueSoon.length) return "";
+  if (!list.length) return "";
   const sorted = [...list.filter(t => t.fixed).sort((a, b) => a.fixed < b.fixed ? -1 : 1), ...list.filter(t => !t.fixed)];
   const shown = sorted.slice(0, 5);
   const label = fromKey(tmr).toLocaleDateString("ru-RU", {weekday:"long", day:"numeric", month:"long"});
   return `<section class="tomorrow" aria-label="Завтра">
-    ${dueSoon.length ? `<div class="note" style="margin:0"><span><b>До завтра нужно сделать:</b> ${dueSoon.map(t => esc(t.title)).join(", ")}</span></div>` : ""}
-    ${list.length ? `<h2>Завтра, ${esc(label)} · ${Number(list.length)} ${plural(list.length, "дело", "дела", "дел")}</h2>
+    <h2>Завтра, ${esc(label)} · ${Number(list.length)} ${plural(list.length, "дело", "дела", "дел")}</h2>
     <ul>${shown.map(t => `<li><b class="num">${t.fixed ? esc(t.fixed) : "—"}</b><span>${esc(t.title)}${t.due ? ` <span class="due">срок: ${esc(relLabel(t.due))}</span>` : ""}</span></li>`).join("")}</ul>
-    ${sorted.length > shown.length ? `<div class="why">и ещё ${sorted.length - shown.length}</div>` : ""}
-    <div class="row"><button class="linkbtn" data-act="next">Открыть завтра →</button></div>` : ""}
+    ${sorted.length > shown.length ? `<div class="why">и ещё ${Number(sorted.length - shown.length)}</div>` : ""}
+    <div class="row"><button class="linkbtn" data-act="next">Открыть завтра →</button></div>
   </section>`;
 }
+
+function addSheet(){
+  const d = S.draft;
+  const draftCats = CAT_ORDER.map(c => `<button class="cat" data-act="cat" data-cat="${esc(c)}" aria-pressed="${d.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("");
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Новая задача" data-stop="1">
+    <h3>Новая задача · ${esc(relLabel(S.date))}</h3>
+    <section class="add" aria-label="Сказать одной фразой">
+      <label class="big" for="phrase">Написать одной фразой</label>
+      <textarea id="phrase" class="field" rows="2" placeholder="Например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
+      <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Без даты: «на потом купить ламинатор».</div>
+      ${S.phrase ? `<div class="suggest" aria-live="polite">
+        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
+        <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
+        : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
+      </div>` : `<div class="row">
+        <button class="primary" data-act="parse">Разобрать фразу</button>
+        ${S.phraseText.trim() ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>`}
+    </section>
+    <section class="add" aria-label="Новая задача">
+      <label class="big" for="title">Или по шагам</label>
+      <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
+      ${d.title.trim() ? `<div class="suggest">
+        <div class="estimate">
+          <button class="step" data-act="min" data-d="-15">−15</button><button class="step" data-act="min" data-d="-5">−5</button>
+          <span class="mins num" aria-live="polite">${dur(d.min||30)}</span>
+          <button class="step" data-act="min" data-d="5">+5</button><button class="step" data-act="min" data-d="15">+15</button>
+        </div>
+        <div class="why" id="draft-why">${esc(d.why||"")}</div>
+        <div class="cats" role="group" aria-label="Вид дела">${draftCats}</div>
+        <div class="row"><label for="fixed">Точное время</label><input id="fixed" class="time" type="time" value="${esc(d.fixed)}">${d.fixed?`<button class="linkbtn" data-act="clearfixed">убрать</button>`:`<span class="why">или впишем в свободное окно</span>`}</div>
+        ${d.cat==="lesson"?`<label class="check"><input id="withprep" type="checkbox" ${d.withPrep?"checked":""}> Добавить подготовку к этому занятию</label>`:""}
+        <div class="row"><button class="primary" data-act="add">Добавить в план</button></div>
+      </div>` : ""}
+    </section>
+    <section class="presets" aria-label="Быстро добавить">
+      <h2>Быстро добавить</h2>
+      <div class="chips">${PRESETS.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p[1])}"></i>${esc(p[0])}</b><span class="num">${dur(estimate(p[0]).min)}</span></button>`).join("")}</div>
+    </section>
+    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+
+function inboxSheet(){
+  const items = S.inbox.items, today = dkey(new Date());
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Входящие" data-stop="1">
+    <h3>Входящие · дела без даты</h3>
+    <p class="store" style="margin:0">Сюда попадает то, что пока некогда делать. Скажите «на потом купить ламинатор» — и дело окажется здесь. Когда в дне появится свободное окно, приложение само предложит его вставить.</p>
+    <div class="row"><input id="in-new" class="field" autocomplete="off" placeholder="Например: заказать карточки на звук Р" style="flex:1" aria-label="Новое дело во входящие"><button class="primary" data-act="inadd">Добавить</button></div>
+    ${items.length ? `<ul class="ilist">${items.map(x => `<li>${catIcon(x.cat)}<div class="body"><b>${esc(x.title)}</b><small>${esc(CATS[safeCat(x.cat)].short)} · ${dur(x.min)}</small></div>
+      <button class="ghost" data-act="intoday" data-id="${esc(x.id)}">${S.date === today ? "В сегодня" : "В этот день"}</button><button class="clx" data-act="indel" data-id="${esc(x.id)}" aria-label="Удалить из входящих">✕</button></li>`).join("")}</ul>`
+      : `<p class="store" style="margin:0">Пока пусто.</p>`}
+    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+
+function weekSheet(){
+  const ws = weekStart(S.date), today = dkey(new Date());
+  let rows = "";
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(ws, i), tasks = k === S.date ? S.tasks : loadDay(k).tasks;
+    const sorted = [...tasks.filter(t => t.fixed).sort((a, b) => a.fixed < b.fixed ? -1 : 1), ...tasks.filter(t => !t.fixed)];
+    const done = tasks.filter(t => t.done).length, mins = tasks.reduce((a, t) => a + t.min, 0);
+    rows += `<li><button class="wrow${k === today ? " istoday" : ""}" data-act="go" data-date="${esc(k)}">
+      <span class="wh"><b>${esc(dayTitle(k))}</b><small>${tasks.length ? `${Number(tasks.length)} ${plural(tasks.length, "дело", "дела", "дел")} · ${dur(mins)}${done ? ` · сделано ${Number(done)}` : ""}` : "свободно"}</small></span>
+      <span class="wt">${sorted.slice(0, 3).map(t => `<span><i style="background:${color(t.cat)}"></i>${t.fixed ? esc(t.fixed) + " " : ""}${esc(t.title)}</span>`).join("")}${sorted.length > 3 ? `<span class="why">и ещё ${Number(sorted.length - 3)}</span>` : ""}</span>
+    </button></li>`;
+  }
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Неделя" data-stop="1">
+    <div class="row" style="justify-content:space-between"><button class="iconbtn" data-act="prevweek" aria-label="Предыдущая неделя">${ICON.left}</button><h3>Неделя с ${esc(fromKey(ws).toLocaleDateString("ru-RU", {day:"numeric", month:"long"}))}</h3><button class="iconbtn" data-act="nextweek" aria-label="Следующая неделя">${ICON.right}</button></div>
+    <ul class="wlist">${rows}</ul>
+    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+
+function statsSheet(){
+  const ws = weekStart(S.date), byCat = {}, planCat = {};
+  let done = 0, total = 0;
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(ws, i), tasks = k === S.date ? S.tasks : loadDay(k).tasks;
+    for (const t of tasks) { total++; planCat[t.cat] = (planCat[t.cat] || 0) + t.min; if (t.done) { done++; byCat[t.cat] = (byCat[t.cat] || 0) + (t.actual || t.min); } }
+  }
+  const cats = CAT_ORDER.filter(c => planCat[c]);
+  const lb = lsGet("lastBackup");
+  const storeNote = SYNC.enabled()
+    ? `Данные хранятся на этом устройстве и в зашифрованном виде синхронизируются с вашим закрытым репозиторием. ${SYNC.status || "Синхронизация…"}`
+    : "Все данные хранятся только на этом устройстве и никуда не отправляются. " +
+      (lb ? `Последняя резервная копия: ${fromKey(lb).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}.` : "Сделайте резервную копию в настройках — на случай очистки браузера или смены телефона.");
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Итоги" data-stop="1">
+    <h3>Итоги недели с ${esc(fromKey(ws).toLocaleDateString("ru-RU", {day:"numeric", month:"long"}))}</h3>
+    <p class="store" style="margin:0">Сделано ${Number(done)} из ${Number(total)} ${plural(total, "дела", "дел", "дел")}. Время — по факту, где вы его отмечали.</p>
+    ${cats.length ? `<ul class="slist">${cats.map(c => `<li>${catIcon(c)}<span class="sn">${esc(CATS[c].name)}</span><span class="num sv">${byCat[c] ? dur(byCat[c]) : "—"} <small>из ${dur(planCat[c])}</small></span></li>`).join("")}</ul>` : `<p class="store" style="margin:0">На этой неделе пока нет дел.</p>`}
+    <button class="ghost" data-act="settings">${ICON.gear.replace("<svg","<svg width='16' height='16' style='vertical-align:-3px;margin-right:6px'")}Настройки дня</button>
+    <div class="store">${esc(storeNote)}</div>
+    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+
+function openReview(){
+  // lessons with children, their preparation and regular tasks happen on their own days, so they are not carried by default
+  S.reviewKeep = {}; S.tasks.filter(t => !t.done).forEach(t => { S.reviewKeep[t.id] = !t.rid && t.cat !== "lesson" && !/^подготовка:/i.test(t.title); });
+  const tm = cleanMeta(lsGet(dayId(addDays(S.date, 1))));
+  S.reviewEnergy = tm.energy || "ok";
+  S.sheet = "review";
+}
+function reviewSheet(){
+  const done = S.tasks.filter(t => t.done), left = S.tasks.filter(t => !t.done);
+  const byCat = {}; done.forEach(t => { byCat[t.cat] = (byCat[t.cat] || 0) + (t.actual || t.min); });
+  const top = CAT_ORDER.filter(c => byCat[c]).sort((a, b) => byCat[b] - byCat[a]).slice(0, 3);
+  const k = left.filter(t => S.reviewKeep[t.id]).length;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Итог дня" data-stop="1">
+    <div><div class="store">${esc(dayTitle(S.date))}</div><h3 style="font-size:24px">День закончен</h3><div class="why">Сделано ${Number(done.length)} из ${Number(S.tasks.length)} ${plural(S.tasks.length, "дела", "дел", "дел")}</div></div>
+    ${top.length ? `<div class="sums">${top.map(c => `<div style="--k:${color(c)}"><small>${esc(CATS[c].short)}</small><b class="num">${dur(byCat[c])}</b></div>`).join("")}</div>` : ""}
+    ${left.length ? `<b>Не успела — перенести на завтра?</b><ul class="rlist">${left.map(t => `<li><button class="rrow" data-act="rkeep" data-id="${esc(t.id)}" aria-pressed="${S.reviewKeep[t.id] ? "true" : "false"}">
+      <span class="body"><b>${esc(t.title)}</b><small>${esc(CATS[safeCat(t.cat)].short)} · ${dur(t.min)}</small></span><span class="tag">${S.reviewKeep[t.id] ? "на завтра" : "оставить"}</span></button></li>`).join("")}</ul>` : `<div class="why">Все дела сделаны.</div>`}
+    <b>Как силы на завтра?</b>
+    <div class="egrid">${["good", "ok", "tired"].map(e => `<button class="ebtn" data-act="renergy" data-e="${esc(e)}" aria-pressed="${S.reviewEnergy === e ? "true" : "false"}">${esc({good:"Бодро", ok:"Нормально", tired:"Устала"}[e])}</button>`).join("")}</div>
+    <button class="primary big" data-act="closeday">${k ? `Перенести (${Number(k)}) и закрыть день` : "Закрыть день"}</button>
+    <button class="linkbtn" data-act="closesheet" style="align-self:center">Позже</button>
+  </div></div>`;
+}
+function closeDay(){
+  const next = addDays(S.date, 1);
+  const moveList = S.tasks.filter(t => !t.done && S.reviewKeep[t.id]);
+  const ex = lsGet(dayId(next)) || {};
+  const nextTasks = (Array.isArray(ex.tasks) ? ex.tasks : []).map(cleanTask).filter(Boolean);
+  const moved = moveList.map(t => { const c = {...t, id:uid(), fixed:""}; delete c.rid; delete c.custom; delete c.actual; return c; });
+  const meta = cleanMeta(ex); delete meta.energy; if (S.reviewEnergy !== "ok") meta.energy = S.reviewEnergy;
+  store.save(dayId(next), {date:next, tasks:[...nextTasks, ...moved], skip:cleanSkip(ex.skip), ...meta});
+  moveList.forEach(t => { if (t.rid) S.skip.push(t.rid); });
+  const ids = new Set(moveList.map(t => t.id));
+  S.tasks = S.tasks.filter(t => !ids.has(t.id));
+  S.meta.closed = true;
+  saveDay();
+  S.sheet = null;
+  S.flash = moved.length ? `День закрыт. Перенесено на завтра: ${moved.length}.` : "День закрыт. Хорошего вечера!";
+  render();
+}
+
+function keepSheetDraft(){
+  const t = S.tasks.find(x => x.id === S.editing); if (!t) return;
+  const ti = $("#e-title"), mi = $("#e-min"), fi = $("#e-fixed");
+  if (ti) t._title = ti.value; if (mi) t._min = mi.value; if (fi) t._fixed = fi.value;
+}
+function dropSheetDraft(t){ if (t) { delete t._cat; delete t._title; delete t._min; delete t._fixed; } }
 function editSheet(){
   const t = S.tasks.find(x => x.id === S.editing); if (!t) { S.editing = null; return ""; }
-  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Изменить задачу" data-stop="1">
-    <h3>Изменить задачу</h3>
-    <input id="e-title" class="field" value="${esc(t.title)}" aria-label="Название">
-    <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${t.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
-    <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${Number(t.min)||30}">
-      <label for="e-fixed">Точное время</label><input id="e-fixed" class="time" type="time" value="${esc(t.fixed||"")}"></div>
+  const L = t.list || [], flexIds = S.tasks.filter(x => !x.fixed).map(x => x.id), fi = flexIds.indexOf(t.id);
+  const curCat = t._cat || t.cat;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Задача" data-stop="1">
+    <div class="row">${catIcon(curCat)}<h3 style="flex:1">Задача</h3></div>
+    <input id="e-title" class="field" value="${esc(t._title !== undefined ? t._title : t.title)}" aria-label="Название">
+    <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${curCat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
+    <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${esc(t._min !== undefined ? t._min : String(Number(t.min)||30))}">
+      <label for="e-fixed">Точное время</label><input id="e-fixed" class="time" type="time" value="${esc(t._fixed !== undefined ? t._fixed : (t.fixed||""))}"></div>
+    ${t.fixed ? "" : `<div class="row"><span class="why">Порядок в дне:</span><button class="ghost" data-act="up" data-id="${esc(t.id)}" ${fi<=0?"disabled":""}>↑ Раньше</button><button class="ghost" data-act="down" data-id="${esc(t.id)}" ${fi>=flexIds.length-1?"disabled":""}>↓ Позже</button></div>`}
+    <div class="clbox">
+      <div class="row" style="justify-content:space-between"><b>Чек-лист</b>${L.length ? `<span class="why num">${Number(L.filter(x => x.d).length)} из ${Number(L.length)}</span>` : ""}</div>
+      ${L.map((x, i) => `<div class="clrow"><button class="clchk" data-act="cltoggle" data-i="${Number(i)}" aria-pressed="${x.d ? "true" : "false"}" aria-label="${x.d ? "Снять отметку" : "Отметить пункт"}">${ICON.tick}</button><span class="clt${x.d ? " dn" : ""}">${esc(x.t)}</span><button class="clx" data-act="cldel" data-i="${Number(i)}" aria-label="Удалить пункт">✕</button></div>`).join("")}
+      <div class="row"><input id="cl-new" class="field" autocomplete="off" placeholder="Новый пункт, например: карточки на звук Р" style="flex:1" aria-label="Новый пункт чек-листа"><button class="ghost" data-act="cladd">Добавить</button></div>
+    </div>
     ${String(t.rid||"").endsWith("p") ? "" : `<div class="why">Повторять каждую неделю по дням:</div>
     <div class="cats" role="group" aria-label="Дни повтора">${DOW_ORDER.map(x => `<button class="cat" data-act="eday" data-day="${Number(x)}" aria-pressed="${S.editDays.includes(x) ? "true" : "false"}">${esc(DOW_SHORT[x])}</button>`).join("")}</div>
     ${t.rid ? `<div class="why">Это постоянное дело. «Удалить» уберёт его только из этого дня.</div>` : ""}`}
@@ -1263,6 +1580,7 @@ function editSheet(){
       <span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="saveedit">Сохранить</button></span></div>
   </div></div>`;
 }
+
 function settingsSheet(){
   const s = S.settings;
   return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Настройки дня" data-stop="1">
@@ -1294,13 +1612,27 @@ function settingsSheet(){
     <div class="row"><button class="ghost" data-act="backup">Скопировать резервную копию</button></div>
     <textarea id="backup-text" class="field" rows="3" placeholder="Сюда вставьте сохранённую копию" aria-label="Текст резервной копии"></textarea>
     <div class="row"><button class="ghost" data-act="restore">Восстановить из копии</button></div>
+    ${safetyInfo() ? `<p class="store" style="margin:0">Перед обновлением приложения ${esc(safetyInfo())} сохранена копия всех данных на этом телефоне.</p><div class="row"><button class="ghost" data-act="safetyrestore">Вернуть данные, как были до обновления</button></div>` : ""}
     ${S.backupMsg?`<div class="store" aria-live="polite">${esc(S.backupMsg)}</div>`:""}
   </div></div>`;
+}
+function safetyInfo(){
+  try { const v = JSON.parse(localStorage.getItem(LSP + "safety-v10") || "null"); return v && v.at ? new Date(v.at).toLocaleDateString("ru-RU", {day:"numeric", month:"long"}) : ""; } catch(e) { return ""; }
+}
+function safetyRestore(){
+  let v = null; try { v = JSON.parse(localStorage.getItem(LSP + "safety-v10") || "null"); } catch(e) {}
+  if (!v || !v.docs) { S.backupMsg = "Копии нет."; render(); return; }
+  let n = 0;
+  for (const [k, d] of Object.entries(v.docs)) if (DOC_RE.test(k) && d && typeof d === "object") { lsSet(k, {...sanitizeDoc(k, d), _m:Date.now()}); n++; }
+  S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats")); S.recurring = cleanRecurring(lsGet("recurring")); S.inbox = cleanInbox(lsGet("inbox"));
+  { const L = loadDay(S.date); S.tasks = L.tasks; S.skip = L.skip; S.meta = {energy:L.meta.energy || "ok", closed:!!L.meta.closed}; }
+  SYNC.schedule();
+  S.backupMsg = `Возвращено: ${n} ${plural(n,"запись","записи","записей")}.`; render();
 }
 function backupText(){
   const data = {};
   try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i);
-    if (k && k.startsWith(LSP) && /^(settings|stats|day-\d{4}-\d{2}-\d{2})$/.test(k.slice(LSP.length))) data[k.slice(LSP.length)] = lsGet(k.slice(LSP.length)); } } catch(e) {}
+    if (k && k.startsWith(LSP) && DOC_RE.test(k.slice(LSP.length))) data[k.slice(LSP.length)] = lsGet(k.slice(LSP.length)); } } catch(e) {}
   return JSON.stringify({app:"den-viktorii", v:1, at:dkey(new Date()), data});
 }
 function doBackup(){
@@ -1318,8 +1650,8 @@ function doRestore(){
   for (const [k, v] of Object.entries(obj.data)) {
     if (DOC_RE.test(k) && v && typeof v === "object") { lsSet(k, {...sanitizeDoc(k, v), _m:Date.now()}); n++; }
   }
-  S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats")); S.recurring = cleanRecurring(lsGet("recurring"));
-  { const L = loadDay(S.date); S.tasks = L.tasks; S.skip = L.skip; S.dayLoaded = true; if (L.changed) saveDay(); }
+  S.settings = cleanSettings(lsGet("settings")); S.stats = cleanStats(lsGet("stats")); S.recurring = cleanRecurring(lsGet("recurring")); S.inbox = cleanInbox(lsGet("inbox"));
+  { const L = loadDay(S.date); S.tasks = L.tasks; S.skip = L.skip; S.meta = {energy:L.meta.energy || "ok", closed:!!L.meta.closed}; S.dayLoaded = true; if (L.changed) saveDay(); }
   SYNC.schedule();
   S.backupMsg = `Восстановлено: ${n} ${plural(n,"запись","записи","записей")}.`;
   render();
@@ -1333,7 +1665,7 @@ document.addEventListener("input", e => {
     S.draft.title = e.target.value; S.draft.ai = null;
     updateDraftEstimate();
     if (had !== !!S.draft.title.trim()) render();
-    else { const m = document.querySelector(".mins"), w = document.querySelector(".why");
+    else { const m = document.querySelector(".mins"), w = document.getElementById("draft-why");
       if (m) m.textContent = dur(S.draft.min||30); if (w) w.textContent = S.draft.why||"";
       document.querySelectorAll('.add .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === S.draft.cat)));
       const needPrep = S.draft.cat === "lesson", hasPrep = !!$("#withprep");
@@ -1349,7 +1681,9 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.id === "phrase") { e.preventDefault(); S.phrase = parsePhrase(S.phraseText); render(); }
   if (e.key === "Enter" && e.target.id && e.target.id.startsWith("act-")) { e.preventDefault(); saveActual(e.target.id.slice(4), e.target.value); }
   if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="edit"]')) { e.preventDefault(); e.target.click(); }
-  if (e.key === "Escape" && (S.editing || S.showSettings)) { S.editing = null; S.showSettings = false; render(); }
+  if (e.key === "Enter" && e.target.id === "cl-new") { e.preventDefault(); document.querySelector('[data-act="cladd"]')?.click(); }
+  if (e.key === "Enter" && e.target.id === "in-new") { e.preventDefault(); document.querySelector('[data-act="inadd"]')?.click(); }
+  if (e.key === "Escape" && (S.editing || S.showSettings || S.sheet)) { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.sheet = null; render(); }
 });
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
@@ -1389,19 +1723,49 @@ document.addEventListener("click", e => {
           else if (t.rid && !days.length) { const rid = t.rid; delete t.rid; delete t.custom; S.recurring = {items:S.recurring.items.filter(r => r.id !== rid)}; saveRecurring(); }
           else if (!t.rid && days.length) { const it = addRecurring({title:t.title, cat:t.cat, min:t.min, fixed:t.fixed, days, prep:false}); t.rid = it.id; }
         } else t.custom = true;
-        saveDay(); refreshToday(); }
+        dropSheetDraft(t); saveDay(); refreshToday(); }
       S.editing = null; render(); break; }
     case "delete": { const t = S.tasks.find(x => x.id === S.editing); if (t && t.rid) S.skip.push(t.rid);
       S.tasks = S.tasks.filter(x => x.id !== S.editing); S.editing = null; saveDay(); render(); break; }
     case "recdel": removeRecurring(id); render(); break;
-    case "closesheet": { const t = S.tasks.find(x => x.id === S.editing); if (t) delete t._cat; S.editing = null; S.showSettings = false; render(); break; }
-    case "settings": S.showSettings = true; S.backupMsg = ""; render(); break;
+    case "closesheet": { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.sheet = null; render(); break; }
+    case "settings": S.sheet = null; S.showSettings = true; S.backupMsg = ""; render(); break;
+    case "go": S.sheet = null; goDate(el.dataset.date); break;
+    case "prevweek": goDate(addDays(S.date, -7)); break;
+    case "nextweek": goDate(addDays(S.date, 7)); break;
+    case "energy": S.meta.energy = ENERGY_NEXT[S.meta.energy] || "ok"; saveDay(); render(); break;
+    case "addsheet": S.sheet = "add"; render(); setTimeout(() => { const p = document.getElementById("phrase"); if (p && !S.phrase) p.focus(); }, 50); break;
+    case "tabtoday": S.sheet = null; S.editing = null; S.showSettings = false; if (S.date !== dkey(new Date())) goDate(dkey(new Date())); else { render(); window.scrollTo({top:0, behavior:"smooth"}); } break;
+    case "tabweek": S.sheet = "week"; render(); break;
+    case "tabinbox": S.sheet = "inbox"; render(); break;
+    case "tabstats": S.sheet = "stats"; render(); break;
+    case "plus10": { const t = S.tasks.find(x => x.id === id); if (t) { t.min = r5(t.min + 10); saveDay(); } render(); break; }
+    case "inslot": { const it = S.inbox.items.find(x => x.id === id); if (it) { inboxToDay(id, el.dataset.at); S.flash = `Вставлено: ${it.title}`; } render(); break; }
+    case "inadd": { const v = ($("#in-new") || {}).value || ""; if (v.trim()) { addInbox(v); render(); setTimeout(() => $("#in-new")?.focus(), 0); } else $("#in-new")?.focus(); break; }
+    case "intoday": { const it = S.inbox.items.find(x => x.id === id); if (it) { inboxToDay(id, ""); S.flash = `Добавлено в ${relLabel(S.date)}: ${it.title}`; } S.sheet = null; render(); break; }
+    case "indel": S.inbox = {items:S.inbox.items.filter(x => x.id !== id)}; saveInbox(); render(); break;
+    case "review": openReview(); render(); break;
+    case "rkeep": S.reviewKeep[id] = !S.reviewKeep[id]; render(); break;
+    case "renergy": S.reviewEnergy = el.dataset.e in ENERGY ? el.dataset.e : "ok"; render(); break;
+    case "closeday": closeDay(); break;
+    case "cltoggle": case "cldel": case "cladd": {
+      const t = S.tasks.find(x => x.id === S.editing); if (!t) break;
+      keepSheetDraft();
+      const L = (t.list || []).map(x => ({...x})), i = Number(el.dataset.i);
+      if (act === "cltoggle" && L[i]) L[i].d = !L[i].d;
+      if (act === "cldel" && L[i]) L.splice(i, 1);
+      if (act === "cladd") { const v = (($("#cl-new") || {}).value || "").trim(); if (!v) { $("#cl-new")?.focus(); break; } if (L.length < 30) L.push({t:v.slice(0, 120), d:false}); }
+      if (L.length) t.list = L; else delete t.list;
+      if (t.rid) t.custom = true;
+      saveDay(); render();
+      if (act === "cladd") setTimeout(() => $("#cl-new")?.focus(), 0);
+      break; }
+    case "safetyrestore": safetyRestore(); break;
     case "savesettings": {
       const st = $("#s-start").value || S.settings.dayStart, en = $("#s-end").value || S.settings.dayEnd;
       S.settings = {dayStart:st, dayEnd: toMin(en) > toMin(st) ? en : S.settings.dayEnd,
         gap: Math.max(0, Math.min(60, Number($("#s-gap").value)||0)), afterLesson: Math.max(0, Math.min(60, Number($("#s-after").value)||0))};
       saveSettings(); S.showSettings = false; render(); break; }
-    case "carry": carryOver(); break;
     case "backup": doBackup(); break;
     case "restore": doRestore(); break;
     case "example": fillExample(); break;
@@ -1414,7 +1778,7 @@ document.addEventListener("click", e => {
     case "toastopen": { const d = S.toast && S.toast.date; S.toast = null; if (d) goDate(d); else render(); break; }
     case "cancelphrase": S.phrase = null; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
     case "clearphrase": S.phrase = null; S.phraseText = ""; VOICE.msg = ""; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
-    case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = "";
+    case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = ""; S.sheet = null;
       S.flash = r.n ? `Готово: ${r.n} ${plural(r.n,"изменение","изменения","изменений")}${r.firstDate && r.firstDate !== S.date ? " — смотрите " + relLabel(r.firstDate) : ""}.` : "Нечего применять.";
       render(); break; }
     case "syncon": { if (S.syncBusy) break;
@@ -1430,6 +1794,9 @@ document.addEventListener("click", e => {
 });
 
 /* ---------- boot ---------- */
+// one-time safety copy of all data, made before this version changes anything (kept on the device only, not synced)
+try { if (!localStorage.getItem(LSP + "safety-v10")) { const docs = localDocs(); if (Object.keys(docs).length) localStorage.setItem(LSP + "safety-v10", JSON.stringify({at:new Date().toISOString(), docs})); } } catch(e) {}
+store.watch("inbox", d => { S.inbox = cleanInbox(d); render(); });
 store.watch("settings", d => { S.settings = cleanSettings(d); render(); });
 store.watch("stats", d => { S.stats = cleanStats(d); render(); });
 store.watch("recurring", d => { S.recurring = cleanRecurring(d); refreshToday(); render(); });
@@ -1440,7 +1807,7 @@ SYNC.run();
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") SYNC.run(); });
 window.addEventListener("online", () => SYNC.run());
 setInterval(() => { if (document.visibilityState === "visible") SYNC.run(); }, 120000);
-setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
+setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && !S.sheet && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
 
 (async () => { try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch(e) {} })();
 })();
