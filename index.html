@@ -12,6 +12,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Мой день">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0} [hidden]{display:none!important} img{max-width:100%}
@@ -462,6 +465,7 @@ async function voiceStart(){
     if (VOICE.state !== "loading") return;                 // cancelled while loading
     VOICE.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, channelCount:1}, video:false});
     VOICE.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (VOICE.ctx.state === "suspended") { try { await VOICE.ctx.resume(); } catch (e) {} }   // iPhone starts audio paused
     const rec = new VOICE.model.KaldiRecognizer(VOICE.ctx.sampleRate);
     rec.on("result", m => { const t = (m && m.result && m.result.text) || ""; if (t) VOICE.final += (VOICE.final ? " " : "") + t; VOICE.partial = ""; showVoiceText(); });
     rec.on("partialresult", m => { VOICE.partial = (m && m.result && m.result.partial) || ""; showVoiceText(); });
