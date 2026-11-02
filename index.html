@@ -258,6 +258,31 @@ header.day{gap:10px; padding-block:12px 8px}
 .cgrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px}
 .cbtn{min-height:44px; border-radius:10px; border:1px solid var(--line); background:var(--surface); font-size:13px; font-weight:700; padding:4px 6px; line-height:1.2}
 .cbtn[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.aa.zap{background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-size:16px}
+.ic.emo{font-size:18px; color:inherit}
+.qtiles{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px}
+.qtile{min-height:92px; border:1px solid var(--line); background:var(--surface); border-radius:16px; padding:12px; text-align:left; display:flex; flex-direction:column; gap:4px; align-items:flex-start}
+.qtile b{font-size:15px; line-height:1.2}.qtile small{color:var(--muted); font-size:12.5px}
+.qplus{border:2px dashed var(--accent); color:var(--accent); align-items:center; justify-content:center; text-align:center}
+.qplus .pl{font-size:30px; line-height:1; font-weight:300}
+.qwhat{display:flex; flex-direction:column; gap:2px; border:2px solid var(--accent); border-radius:12px; padding:8px 12px; background:var(--surface)}
+.qwhat small{font-size:11px; font-weight:800; letter-spacing:.04em; color:var(--muted)}
+.qwhat input{border:0; background:transparent; font-size:17px; padding:2px 0; outline:none; color:var(--ink)}
+.lab2{font-size:11.5px; font-weight:800; letter-spacing:.05em; color:var(--muted); margin-bottom:-4px}
+.seg2{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.seg2 button{min-height:40px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); font-weight:600; font-size:14px}
+.seg2 button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.seg2 .other{display:flex; align-items:center; gap:4px; font-size:13px; color:var(--muted)}
+.seg2 .other input{min-height:40px; border:1px solid var(--line); border-radius:10px; background:var(--bg); padding:0 6px}
+.qlist{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px}
+.qlist li{display:flex; align-items:center; gap:8px}
+.qrow{flex:1; min-width:0; display:flex; align-items:center; gap:10px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:8px 10px; text-align:left}
+.qrow .body{display:flex; flex-direction:column; min-width:0}.qrow small{color:var(--muted); font-size:12.5px}
+.qx{width:44px; height:44px; flex:none; border-radius:22px; border:1px solid var(--line); background:var(--warn-bg); color:var(--warn); font-weight:800}
+.igrid{display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:6px}
+.igrid button{height:46px; border-radius:12px; border:1px solid var(--line); background:var(--surface); font-size:22px; padding:0}
+.igrid button[aria-pressed="true"]{border:3px solid var(--accent); background:var(--surface-2)}
+.danger-fill{background:var(--warn); color:#fff; border-color:var(--warn)}
 .pick{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px}
 .pick label{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--muted)}
 .pick input{min-height:40px}
@@ -936,7 +961,7 @@ const S = {
   sample: null, aiBusy:false, aiMsg:"",
   phraseText:"", phrase:null, syncMsg:"", syncBusy:false,
   recurring:{items:[]}, skip:[], editDays:[],
-  inbox:{items:[]}, presets:{items:[]}, presetEdit:null, meta:{energy:"ok", closed:false}, sheet:null, alert:null, calMsg:"",
+  inbox:{items:[]}, presets:{items:[]}, presetEdit:null, q:null, qe:null, qUndo:null, qConfirm:false, qeMsg:"", qeFrom:"", meta:{energy:"ok", closed:false}, sheet:null, alert:null, calMsg:"",
   cal:(() => { const p = lsGet("calPrefs") || {}; return {kind:"day", ahead:[5, 10, 30, 60].includes(p.ahead) ? p.ahead : 10, flex:p.flex !== false}; })(), reviewSeen:"", reviewKeep:{}, reviewEnergy:"ok"
 };
 const dayId = k => "day-" + k;
@@ -1005,6 +1030,7 @@ function cleanTask(t){
   if (DATE_RE_T.test(t.due)) out.due = t.due;
   const rid = String(t.rid || "").replace(/[^a-z0-9]/gi, "").slice(0, 20);
   if (rid) { out.rid = rid; if (t.custom) out.custom = true; }
+  if (safeIcon(t.icon)) out.icon = t.icon;
   if (Array.isArray(t.list)) {
     const list = t.list.slice(0, 30).map(x => x && typeof x === "object" ? {t:String(x.t || "").slice(0, 120).trim(), d:!!x.d} : null).filter(x => x && x.t);
     if (list.length) out.list = list;
@@ -1017,14 +1043,15 @@ function cleanMeta(d){
   if (d && d.closed) out.closed = true;
   return out;
 }
-const defaultPresets = () => PRESETS.map(([title, cat, min], i) => ({id:"p" + i, title, cat, min}));
+const DEFAULT_ICONS = {"Занятие с ребёнком":"👦","Подготовка к занятию":"✏️","Сделать пособие":"🧩","Консультация родителей":"📞","Записи после занятий":"📝","Пост в ВК":"📱","Сторис":"📷","Ответить на комментарии":"💻","Приготовить обед":"🍲","Уборка":"🧹","Магазин":"🛒","Прогулка":"🚶‍♀️","Отдых, чай":"☕"};
+const defaultPresets = () => PRESETS.map(([title, cat, min], i) => ({id:"p" + i, title, cat, min, icon:DEFAULT_ICONS[title] || CAT_EMOJI[cat] || "⭐"}));
 function cleanPresets(d){
   if (!d || !Array.isArray(d.items)) return {items:defaultPresets()};
   const items = [];
   for (const x of d.items.slice(0, 40)) {
     if (!x || typeof x !== "object") continue;
     const id = String(x.id || "").replace(/[^a-z0-9]/gi, "").slice(0, 16) || uid(), title = String(x.title || "").slice(0, 120).trim();
-    if (title) items.push({id, title, cat:safeCat(x.cat), min:r5(clampNum(x.min, 5, 600, 30))});
+    if (title) items.push({id, title, cat:safeCat(x.cat), min:r5(clampNum(x.min, 5, 600, 30)), icon:safeIcon(x.icon) || DEFAULT_ICONS[title] || CAT_EMOJI[safeCat(x.cat)] || "⭐"});
   }
   return {items};
 }
@@ -1279,7 +1306,7 @@ const CAT_ICON = {
 function catIcon(c){
   return `<span class="ic" style="--k:${color(c)}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${CAT_ICON[safeCat(c)]}</svg></span>`;
 }
-const ENERGY = {ok:["Силы: норм.", "var(--c-prep)"], good:["Силы: бодро", "var(--c-rest)"], tired:["Силы: устала", "var(--c-home)"]};
+const ENERGY = {ok:["норм.", "var(--c-prep)"], good:["бодро", "var(--c-rest)"], tired:["устала", "var(--c-home)"]};
 const ENERGY_NEXT = {ok:"good", good:"tired", tired:"ok"};
 const nowMinutes = () => { const d = new Date(); return d.getHours()*60 + d.getMinutes(); };
 const weekStart = k => { const dow = fromKey(k).getDay(); return addDays(k, -((dow + 6) % 7)); };
@@ -1308,7 +1335,7 @@ function nowCard(plan){
   if (cur) {
     const t = cur.t, L = t.list || [], pct = Math.max(0, Math.min(100, (nowM - cur.s) / Math.max(1, cur.e - cur.s) * 100));
     return `<section class="nowcard" style="--k:${color(t.cat)}" aria-label="Сейчас">
-      <div class="nc-top">${catIcon(t.cat)}<div class="nc-t" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><small>Сейчас · осталось ${dur(Math.max(1, cur.e - nowM))}</small><b>${esc(t.title)}</b></div></div>
+      <div class="nc-top">${tIcon(t)}<div class="nc-t" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><small>Сейчас · осталось ${dur(Math.max(1, cur.e - nowM))}</small><b>${esc(t.title)}</b></div></div>
       <div class="nc-bar" role="img" aria-label="Пройдено ${Number(Math.round(pct))}%"><span style="width:${pct.toFixed(1)}%"></span></div>
       <div class="nc-row"><span class="nc-info">${L.length ? `Чек-лист ${Number(L.filter(x => x.d).length)} из ${Number(L.length)}` : esc(CATS[safeCat(t.cat)].short)}${next ? ` · дальше: ${esc(next.t.title)} в ${hhmm(next.s)}` : ""}</span>
         <span class="nc-btns"><button class="pill" data-act="plus10" data-id="${esc(t.id)}">+10 мин</button><button class="darkbtn" data-act="done" data-id="${esc(t.id)}">Готово</button></span></div>
@@ -1317,7 +1344,7 @@ function nowCard(plan){
   if (next) {
     const t = next.t;
     return `<section class="nowcard" style="--k:${color(t.cat)}" aria-label="Дальше">
-      <div class="nc-top">${catIcon(t.cat)}<div class="nc-t" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><small>Дальше · через ${dur(next.s - nowM)}</small><b>${esc(t.title)}</b></div></div>
+      <div class="nc-top">${tIcon(t)}<div class="nc-t" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0"><small>Дальше · через ${dur(next.s - nowM)}</small><b>${esc(t.title)}</b></div></div>
       <div class="nc-row"><span class="nc-info">в ${hhmm(next.s)} · ${esc(CATS[safeCat(t.cat)].short)} · ${dur(t.min)}${listCount(t) ? " · чек-лист " + esc(listCount(t)) : ""}</span></div>
     </section>`;
   }
@@ -1465,6 +1492,123 @@ function alertBox(){
   </div></div>`;
 }
 
+/* ---------- quick tasks (⚡): tiles, "what exactly", day and time; editor with icons ---------- */
+const ICON_SET = ["👦","👧","🧒","🧩","📚","✏️","✂️","🎨","🗣️","📝","📞","💻","📷","📱","🏠","🍲","🧹","🛒","🧺","🌿","🚶‍♀️","☕","💆‍♀️","⭐"];
+const CAT_EMOJI = {lesson:"👦", prep:"✏️", work:"📞", blog:"📱", home:"🏠", rest:"🌿", other:"⭐"};
+const safeIcon = e => ICON_SET.includes(e) ? e : "";
+function tIcon(t){
+  const e = safeIcon(t && t.icon);
+  return e ? `<span class="ic emo" style="--k:${color(t.cat)}" aria-hidden="true">${esc(e)}</span>` : catIcon(t.cat);
+}
+/* plan of a day with extra (not yet saved) tasks */
+function simulate(k, extra){
+  const keep = {date:S.date, tasks:S.tasks, meta:S.meta};
+  const L = k === S.date ? {tasks:S.tasks, meta:S.meta} : loadDay(k);
+  S.date = k; S.tasks = [...L.tasks, ...extra]; S.meta = {energy:(L.meta && L.meta.energy) || "ok", closed:false};
+  try { return schedule(); } finally { S.date = keep.date; S.tasks = keep.tasks; S.meta = keep.meta; }
+}
+/* start times that fit `min` minutes without clashes; for a lesson, its preparation must still fit before it */
+function freeSlots(k, min, cat, prep){
+  const base = simulate(k, []), today = dkey(new Date());
+  let from = base.start; if (k === today) from = Math.max(from, Math.ceil(nowMinutes() / 5) * 5);
+  const cands = [];
+  for (let m = from; m + min <= base.end; m += 5) cands.push(m);
+  const out = []; let last = -999;
+  for (const m of cands) {
+    if (out.length >= 4) break;
+    if (m - last < 30 && out.length) continue;               // offer spread-out times
+    const probe = {id:"probe", title:"probe", cat:cat || "other", min, fixed:hhmm(m), done:false};
+    const extra = [probe]; if (cat === "lesson" && prep) { const pe = estimate("Подготовка к занятию"); extra.push({id:"probep", title:"Подготовка: probe", cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false}); }
+    const p = simulate(k, extra);
+    if (p.clash.has("probe") || p.over.length > base.over.length || p.late.size > base.late.size) continue;
+    out.push(m); last = m;
+  }
+  return out;
+}
+function quickSheet(){
+  const L = S.presets.items;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Быстрые задачи" data-stop="1">
+    <div class="row"><h3 style="flex:1">⚡ Быстрые задачи</h3><button class="iconbtn" data-act="qmanage" aria-label="Изменить или удалить быстрые задачи">✎</button></div>
+    <div class="qtiles">${L.map((p, i) => `<button class="qtile" data-act="qpick" data-i="${Number(i)}">${tIcon(p)}<b>${esc(p.title)}</b><small class="num">${dur(p.min)}</small></button>`).join("")}
+      <button class="qtile qplus" data-act="qnew"><span class="pl" aria-hidden="true">+</span><b>Новая быстрая задача</b></button></div>
+    ${L.length ? `<div class="why" style="text-align:center">Нажмите — напишете, что именно, и выберете день и время</div>` : `<div class="why" style="text-align:center">Список пуст — создайте свои через «+»</div>`}
+    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+function qTitle(){ const p = S.presets.items[S.q.i] || {title:""}; const w = (S.q.what || "").trim(); return w ? `${p.title}: ${w}` : p.title; }
+function qAddSheet(){
+  const q = S.q, p = S.presets.items[q.i]; if (!p) { S.sheet = "quick"; return quickSheet(); }
+  const today = dkey(new Date());
+  const days = [0, 1, 2, 3].map(n => addDays(today, n));
+  const dayLbl = k => k === today ? "Сегодня" : k === addDays(today, 1) ? "Завтра" : dayTitle(k).split(",")[0] + ", " + Number(fromKey(k).getDate());
+  const slots = freeSlots(q.date, q.min, p.cat, q.prep);
+  const clash = overlaps(q.date, q.fixed, q.min);
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Добавить быструю задачу" data-stop="1">
+    <div class="row">${tIcon(p)}<h3 style="flex:1">${esc(p.title)}</h3></div>
+    <label class="qwhat"><small>ЧТО ИМЕННО?</small><input id="q-what" autocomplete="off" placeholder="Например: с Мишей — звук Р, карточки" value="${esc(q.what)}"></label>
+    <div class="lab2">ДЕНЬ</div>
+    <div class="seg2">${days.map(k => `<button data-act="qday" data-date="${esc(k)}" aria-pressed="${q.date === k ? "true" : "false"}">${esc(dayLbl(k))}</button>`).join("")}<label class="other">📅 <input id="q-date" type="date" value="${esc(q.date)}" aria-label="Другой день"></label></div>
+    <div class="lab2">ВРЕМЯ · ${slots.length ? "свободные окна" : "свободных окон нет — выберите сами"}</div>
+    <div class="seg2">${slots.map(m => `<button data-act="qtime" data-t="${esc(hhmm(m))}" aria-pressed="${q.fixed === hhmm(m) ? "true" : "false"}">${esc(hhmm(m))}</button>`).join("")}<label class="other">другое <input id="q-time" type="time" value="${esc(q.fixed)}" aria-label="Другое время"></label><button data-act="qtime" data-t="" aria-pressed="${q.fixed ? "false" : "true"}">без времени</button></div>
+    ${clashBox(clash, q.clash, "qclash", 0)}
+    <div class="lab2">ДЛИТСЯ</div>
+    <div class="estimate"><button class="step" data-act="qmin" data-d="-15">−15</button><button class="step" data-act="qmin" data-d="-5">−5</button><span class="mins num">${dur(q.min)}</span><button class="step" data-act="qmin" data-d="5">+5</button><button class="step" data-act="qmin" data-d="15">+15</button></div>
+    ${p.cat === "lesson" ? `<label class="check"><input id="q-prep" type="checkbox" ${q.prep ? "checked" : ""}> Добавить подготовку перед занятием</label>` : ""}
+    <button class="primary big" data-act="qgo">Добавить в план</button>
+    <div class="actions"><button class="ghost" data-act="quick">‹ Назад</button><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+function qAdd(){
+  const q = S.q, p = S.presets.items[q.i]; if (!p) return;
+  const date = DATE_RE_T.test(q.date) ? q.date : S.date, title = qTitle();
+  const clash = overlaps(date, q.fixed, q.min);
+  if (clash.length && q.clash === "old") { S.sheet = null; S.flash = `Не добавлено: ${title} — время занято`; render(); return; }
+  const undo = {[dayId(date)]: lsGet(dayId(date))};
+  if (clash.length && q.clash === "new") removeTasks(date, clash.map(t => t.id));
+  const list = date === S.date ? S.tasks : loadDay(date).tasks;
+  const icon = safeIcon(p.icon);
+  if (p.cat === "lesson" && q.prep) { const pe = estimate("Подготовка к занятию"); list.push({id:uid(), title:"Подготовка: " + title, cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false}); }
+  const nt = {id:uid(), title, cat:safeCat(p.cat), min:r5(q.min), fixed:TIME_RE.test(q.fixed) ? q.fixed : "", done:false}; if (icon) nt.icon = icon;
+  list.push(nt);
+  if (date === S.date) saveDay(); else { const L = loadDay(date); saveOtherDay(date, list, L.skip); }
+  S.sheet = null;
+  S.toast = {lines:[`${title} — ${relLabel(date)}${nt.fixed ? ", " + nt.fixed : ""}${p.cat === "lesson" && q.prep ? " + подготовка" : ""}`], undo, date};
+  render();
+}
+function qManageSheet(){
+  const L = S.presets.items;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Изменить быстрые задачи" data-stop="1">
+    <h3>✎ Быстрые задачи</h3>
+    ${S.qUndo ? `<div class="note good" role="status"><span style="flex:1">Удалено: ${esc(S.qUndo.label)}</span><button class="linkbtn" data-act="qundo">Отменить</button></div>` : ""}
+    <ul class="qlist">${L.map((p, i) => `<li><button class="qrow" data-act="qedit" data-i="${Number(i)}">${tIcon(p)}<span class="body"><b>${esc(p.title)}</b><small>${esc(CATS[safeCat(p.cat)].short)} · ${dur(p.min)}</small></span></button><button class="qx" data-act="qdel" data-i="${Number(i)}" aria-label="Удалить ${esc(p.title)}">✕</button></li>`).join("")}</ul>
+    ${L.length ? "" : `<p class="store" style="margin:0">Список пуст.</p>`}
+    <button class="ghost" data-act="qnew">+ Новая быстрая задача</button>
+    ${S.qConfirm ? `<div class="clash" role="alertdialog" aria-label="Удалить все"><b>Удалить все быстрые задачи?</b><span>Задачи, которые уже стоят в плане, останутся. Пропадут только плитки в окне ⚡.</span>
+      <div class="cgrid" style="grid-template-columns:1fr 1fr"><button class="cbtn" data-act="qdelallno">Отмена</button><button class="cbtn danger-fill" data-act="qdelallyes">Удалить все</button></div></div>`
+      : (L.length ? `<button class="linkbtn danger" data-act="qdelall" style="align-self:center">🗑 Удалить все быстрые задачи</button>` : "")}
+    <button class="linkbtn" data-act="qdefault" style="align-self:center">Вернуть список по умолчанию</button>
+    <div class="actions"><button class="ghost" data-act="quick">‹ К плиткам</button><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+function qEditSheet(){
+  const e = S.qe;
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Быстрая задача" data-stop="1">
+    <div class="row">${tIcon(e)}<h3 style="flex:1">${e.id ? "Быстрая задача" : "Новая быстрая задача"}</h3></div>
+    <label class="lab2" for="qe-title">НАЗВАНИЕ</label>
+    <input id="qe-title" class="field" autocomplete="off" placeholder="Например: Занятие" value="${esc(e.title)}">
+    <div class="lab2">ИКОНКА</div>
+    <div class="igrid">${ICON_SET.map((x, i) => `<button data-act="qicon" data-e="${Number(i)}" aria-pressed="${e.icon === x ? "true" : "false"}" aria-label="Иконка ${Number(i) + 1}">${esc(x)}</button>`).join("")}</div>
+    <div class="lab2">ВИД ДЕЛА (ЦВЕТ)</div>
+    <div class="cats">${CAT_ORDER.map(c => `<button class="cat" data-act="qcat" data-cat="${esc(c)}" aria-pressed="${e.cat === c ? "true" : "false"}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
+    <div class="lab2">ДЛИТСЯ</div>
+    <div class="estimate"><button class="step" data-act="qemin" data-d="-15">−15</button><button class="step" data-act="qemin" data-d="-5">−5</button><span class="mins num">${dur(e.min)}</span><button class="step" data-act="qemin" data-d="5">+5</button><button class="step" data-act="qemin" data-d="15">+15</button></div>
+    ${S.qeMsg ? `<div class="why" style="color:var(--warn)">${esc(S.qeMsg)}</div>` : ""}
+    <div class="actions"><button class="ghost" data-act="qeback">Отмена</button><button class="primary" data-act="qesave">Сохранить</button></div>
+    ${e.id ? `<button class="linkbtn danger" data-act="qedel" style="align-self:center">Удалить быструю задачу</button>` : ""}
+  </div></div>`;
+}
+function savePresets(items){ S.presets = cleanPresets({items}); store.save("presets", S.presets); }
+
 /* an inbox item that fits a free window without pushing anything else out of the day or after its lesson */
 function slotFor(from, to, plan){
   const gapSet = Number(S.settings.gap) || 0;
@@ -1490,7 +1634,7 @@ function taskRow(t, s, e, plan){
   const clash = plan.clash.has(t.id), lc = listCount(t);
   return `<div class="blk${t.done ? " done" : ""}">
     <div class="when num">${s === null ? "—" : hhmm(s)}</div>
-    ${catIcon(t.cat)}
+    ${tIcon(t)}
     <div class="body" data-act="edit" data-id="${esc(t.id)}" role="button" tabindex="0">
       <div class="t">${esc(t.title)}</div>
       <div class="m"><span>${esc(CATS[safeCat(t.cat)].short)} · <span class="num">${dur(t.min)}</span></span>${t.fixed ? `<span class="pin">в ${esc(t.fixed)}</span>` : ""}${t.rid ? `<span title="Постоянное дело">↻</span>` : ""}${t.due ? `<span class="due">срок: ${esc(relLabel(t.due))}</span>` : ""}${t.actual ? `<span class="num">факт ${dur(t.actual)}</span>` : ""}${clash ? `<span style="color:var(--warn);font-weight:700">пересекается</span>` : ""}</div>
@@ -1553,6 +1697,7 @@ function render(){
       <h1><small>${esc(rel)}</small>${esc(dayTitle(S.date))}</h1>
       ${S.date === today ? `<button class="pill" data-act="energy" aria-label="Как силы сегодня: ${esc(en[0].replace("Силы: ", ""))}. Нажмите, чтобы изменить"><i style="background:${en[1]}"></i>${esc(en[0])}</button>`
         : `<button class="pill" data-act="today">Сегодня</button>`}
+      <button class="aa zap" data-act="quick" aria-label="Быстрые задачи">⚡</button>
       <button class="aa" data-act="addsheet" aria-label="Написать задачу текстом">Аа</button>
     </div>
     ${weekStrip()}
@@ -1598,7 +1743,10 @@ function render(){
   ${!S.editing && !S.showSettings && S.sheet === "stats" ? statsSheet() : ""}
   ${!S.editing && !S.showSettings && S.sheet === "review" ? reviewSheet() : ""}
   ${!S.editing && !S.showSettings && S.sheet === "cal" ? calSheet() : ""}
-  ${!S.editing && !S.showSettings && S.sheet === "presets" ? presetSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "quick" ? quickSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "qadd" ? qAddSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "qmanage" ? qManageSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "qedit" ? qEditSheet() : ""}
   ${S.alert ? alertBox() : ""}`;
 
   if (active === "title" || active === "phrase") { const el = document.getElementById(active); if (el) { el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); } }
@@ -1664,11 +1812,6 @@ function addSheet(){
         ${d.cat==="lesson"?`<label class="check"><input id="withprep" type="checkbox" ${d.withPrep?"checked":""}> Добавить подготовку к этому занятию</label>`:""}
         <div class="row"><button class="primary" data-act="add">Добавить в план</button></div>
       </div>` : ""}
-    </section>
-    <section class="presets" aria-label="Быстро добавить">
-      <h2>Быстро добавить</h2>
-      <div class="chips">${S.presets.items.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p.cat)}"></i>${esc(p.title)}</b><span class="num">${dur(p.min)}</span></button>`).join("")}</div>
-      <div class="row"><button class="ghost" data-act="presetedit">✎ Изменить быстрые задачи</button><span class="why">Нажмите на задачу — она подставится в форму выше, останется выбрать день и время.</span></div>
     </section>
     <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
   </div></div>`;
@@ -1901,6 +2044,8 @@ function doRestore(){
 
 /* ---------- events ---------- */
 document.addEventListener("input", e => {
+  if (e.target.id === "q-what" && S.q) { S.q.what = e.target.value.slice(0, 160); return; }
+  if (e.target.id === "qe-title" && S.qe) { S.qe.title = e.target.value.slice(0, 120); S.qeMsg = ""; return; }
   if (e.target.dataset && e.target.dataset.pe && S.presetEdit) { const p = S.presetEdit[Number(e.target.dataset.i)]; if (p) { const k = e.target.dataset.pe; if (k === "title") p.title = e.target.value; if (k === "min") p.min = e.target.value; } return; }
   if (e.target.id === "phrase") { const had = !!S.phraseText.trim(); S.phraseText = e.target.value; if (S.phrase || had !== !!S.phraseText.trim()) { S.phrase = null; render(); } return; }
   if (e.target.id === "title") {
@@ -1917,6 +2062,9 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => {
   if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
+  if (e.target.id === "q-date" && S.q && DATE_RE_T.test(e.target.value)) { S.q.date = e.target.value; S.q.fixed = ""; S.q.clash = "both"; render(); }
+  if (e.target.id === "q-time" && S.q) { S.q.fixed = TIME_RE.test(e.target.value) ? e.target.value : ""; S.q.clash = "both"; render(); }
+  if (e.target.id === "q-prep" && S.q) { S.q.prep = e.target.checked; render(); }
   if (e.target.id === "d-date") { S.draft.date = DATE_RE_T.test(e.target.value) ? e.target.value : ""; render(); }
   if (e.target.id === "e-fixed" || e.target.id === "e-date" || e.target.id === "e-min") { keepSheetDraft(); render(); }
   if (e.target.dataset && e.target.dataset.pa && S.phrase) { const a = S.phrase[Number(e.target.dataset.i)];
@@ -1931,6 +2079,8 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.id === "phrase") { e.preventDefault(); S.phrase = parsePhrase(S.phraseText); render(); }
   if (e.key === "Enter" && e.target.id && e.target.id.startsWith("act-")) { e.preventDefault(); saveActual(e.target.id.slice(4), e.target.value); }
   if ((e.key === "Enter" || e.key === " ") && e.target.matches('[data-act="edit"]')) { e.preventDefault(); e.target.click(); }
+  if (e.key === "Enter" && e.target.id === "q-what") { e.preventDefault(); e.target.blur(); }
+  if (e.key === "Enter" && e.target.id === "qe-title") { e.preventDefault(); e.target.blur(); }
   if (e.key === "Enter" && e.target.id === "cl-new") { e.preventDefault(); document.querySelector('[data-act="cladd"]')?.click(); }
   if (e.key === "Enter" && e.target.id === "in-new") { e.preventDefault(); document.querySelector('[data-act="inadd"]')?.click(); }
   if (e.key === "Escape" && (S.editing || S.showSettings || S.sheet)) { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.sheet = null; render(); }
@@ -2029,6 +2179,39 @@ document.addEventListener("click", e => {
     case "dclash": S.draft.clash = el.dataset.v; render(); break;
     case "pclash": { const a = S.phrase && S.phrase[Number(el.dataset.i)]; if (a) a.clash = el.dataset.v; render(); break; }
     case "eclash": keepSheetDraft(); S.editClash = el.dataset.v; render(); break;
+    case "quick": S.q = null; S.qConfirm = false; S.qUndo = null; S.sheet = "quick"; render(); break;
+    case "qpick": { const p = S.presets.items[Number(el.dataset.i)]; if (!p) break;
+      const today = dkey(new Date()); const date = S.date >= today ? S.date : today;
+      S.q = {i:Number(el.dataset.i), what:"", date, fixed:"", min:p.min, prep:true, clash:"both"};
+      const sl = freeSlots(date, p.min, p.cat, true); if (sl.length) S.q.fixed = hhmm(sl[0]);
+      S.sheet = "qadd"; render(); setTimeout(() => $("#q-what")?.focus(), 60); break; }
+    case "qday": if (S.q) { S.q.date = el.dataset.date; const pp = S.presets.items[S.q.i] || {}; const sl = freeSlots(S.q.date, S.q.min, pp.cat, S.q.prep); S.q.fixed = sl.length ? hhmm(sl[0]) : ""; S.q.clash = "both"; } render(); break;
+    case "qtime": if (S.q) { S.q.fixed = TIME_RE.test(el.dataset.t) ? el.dataset.t : ""; S.q.clash = "both"; } render(); break;
+    case "qmin": if (S.q) S.q.min = r5(Math.min(600, Math.max(5, S.q.min + Number(el.dataset.d)))); render(); break;
+    case "qclash": if (S.q) S.q.clash = el.dataset.v; render(); break;
+    case "qgo": qAdd(); break;
+    case "qmanage": S.qConfirm = false; S.qUndo = null; S.sheet = "qmanage"; render(); break;
+    case "qnew": S.qe = {id:"", title:"", icon:"⭐", cat:"other", min:30}; S.qeMsg = ""; S.qeFrom = S.sheet; S.sheet = "qedit"; render(); setTimeout(() => $("#qe-title")?.focus(), 60); break;
+    case "qedit": { const p = S.presets.items[Number(el.dataset.i)]; if (!p) break; S.qe = {...p}; S.qeMsg = ""; S.qeFrom = "qmanage"; S.sheet = "qedit"; render(); break; }
+    case "qicon": if (S.qe) S.qe.icon = ICON_SET[Number(el.dataset.e)] || S.qe.icon; render(); break;
+    case "qcat": if (S.qe) S.qe.cat = safeCat(el.dataset.cat); render(); break;
+    case "qemin": if (S.qe) S.qe.min = r5(Math.min(600, Math.max(5, S.qe.min + Number(el.dataset.d)))); render(); break;
+    case "qeback": S.sheet = S.qeFrom === "quick" ? "quick" : "qmanage"; S.qe = null; render(); break;
+    case "qesave": { const e2 = S.qe; if (!e2) break; const t = (($("#qe-title") || {}).value || e2.title || "").trim();
+      if (!t) { S.qeMsg = "Напишите название."; render(); $("#qe-title")?.focus(); break; }
+      const item = {id:e2.id || uid(), title:t, cat:e2.cat, min:e2.min, icon:e2.icon};
+      const L = S.presets.items.map(p => ({...p})); const ix = L.findIndex(p => p.id === item.id);
+      if (ix >= 0) L[ix] = item; else if (L.length < 40) L.push(item);
+      savePresets(L); S.sheet = S.qeFrom === "quick" ? "quick" : "qmanage"; S.qe = null; S.qUndo = null; render(); break; }
+    case "qedel": { const e2 = S.qe; if (!e2) break; const prev = S.presets.items.map(p => ({...p}));
+      savePresets(S.presets.items.filter(p => p.id !== e2.id)); S.qUndo = {items:prev, label:e2.title}; S.qe = null; S.sheet = "qmanage"; render(); break; }
+    case "qdel": { const i = Number(el.dataset.i), p = S.presets.items[i]; if (!p) break; const prev = S.presets.items.map(x => ({...x}));
+      savePresets(S.presets.items.filter((_, j) => j !== i)); S.qUndo = {items:prev, label:p.title}; S.qConfirm = false; render(); break; }
+    case "qundo": if (S.qUndo) { savePresets(S.qUndo.items); S.qUndo = null; } render(); break;
+    case "qdelall": S.qConfirm = true; render(); break;
+    case "qdelallno": S.qConfirm = false; render(); break;
+    case "qdelallyes": { const prev = S.presets.items.map(x => ({...x})); savePresets([]); S.qConfirm = false; S.qUndo = {items:prev, label:"все быстрые задачи"}; render(); break; }
+    case "qdefault": { const prev = S.presets.items.map(x => ({...x})); savePresets(defaultPresets()); S.qConfirm = false; S.qUndo = null; if (prev.length) S.flash = ""; render(); break; }
     case "presetedit": S.presetEdit = S.presets.items.map(p => ({...p})); S.sheet = "presets"; render(); break;
     case "pedel": if (S.presetEdit) { keepPresetInputs(); S.presetEdit.splice(Number(el.dataset.i), 1); } render(); break;
     case "peadd": if (S.presetEdit && S.presetEdit.length < 40) { keepPresetInputs(); S.presetEdit.push({id:uid(), title:"", cat:"other", min:30}); render(); setTimeout(() => { const all = document.querySelectorAll('[data-pe="title"]'); all.length && all[all.length - 1].focus(); }, 30); } break;
