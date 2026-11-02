@@ -253,6 +253,14 @@ header.day{gap:10px; padding-block:12px 8px}
 .ebtn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--surface); font-weight:600}
 .ebtn[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .sheet .big{height:54px; font-size:17px; border-radius:16px}
+.pick{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px}
+.pick label{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--muted)}
+.pick input{min-height:40px}
+.pedit{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px}
+.pedit li{border:1px solid var(--line); border-radius:14px; padding:10px; display:flex; flex-direction:column; gap:8px}
+.pedit .row label{display:flex; align-items:center; gap:6px}
+.pedit input.num{width:80px}
+select.time{min-height:40px}
 .copt{width:100%; text-align:left; display:flex; align-items:center; gap:12px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:12px}
 .copt .body{flex:1; display:flex; flex-direction:column}
 .copt small{font-size:13px; color:var(--muted)}
@@ -338,7 +346,7 @@ const lsGet = k => { try { const v = localStorage.getItem(LSP+k); return v ? JSO
 const lsSet = (k,v) => { try { localStorage.setItem(LSP+k, JSON.stringify(v)); } catch(e) {} };
 /* ---------- local store (single source on the device) ---------- */
 const lsDel = k => { try { localStorage.removeItem(LSP+k); } catch(e) {} };
-const DOC_RE = /^(settings|stats|recurring|inbox|day-\d{4}-\d{2}-\d{2})$/;
+const DOC_RE = /^(settings|stats|recurring|inbox|presets|day-\d{4}-\d{2}-\d{2})$/;
 const store = {
   mode:"local", watchers:{},
   watch(id, cb){ this.watchers[id] = cb; cb(lsGet(id)); },
@@ -358,6 +366,7 @@ function sanitizeDoc(id, d){
   if (id === "stats") return {...cleanStats(d), _m:m};
   if (id === "recurring") return {...cleanRecurring(d), _m:m};
   if (id === "inbox") return {...cleanInbox(d), _m:m};
+  if (id === "presets") return {...cleanPresets(d), _m:m};
   return {date:id.slice(4), tasks:(d && Array.isArray(d.tasks) ? d.tasks : []).map(cleanTask).filter(Boolean), skip:cleanSkip(d && d.skip), ...cleanMeta(d), _m:m};
 }
 
@@ -915,14 +924,14 @@ const S = {
   settings: {...DEFAULT_SETTINGS},
   stats: {items:{}},
   tasks: [],
-  draft: {title:"", cat:null, min:null, fixed:"", catManual:false, minManual:false, withPrep:true, ai:null},
+  draft: {title:"", cat:null, min:null, fixed:"", date:"", catManual:false, minManual:false, withPrep:true, ai:null},
   askingDone: null,
   editing: null,
   showSettings: false,
   sample: null, aiBusy:false, aiMsg:"",
   phraseText:"", phrase:null, syncMsg:"", syncBusy:false,
   recurring:{items:[]}, skip:[], editDays:[],
-  inbox:{items:[]}, meta:{energy:"ok", closed:false}, sheet:null, alert:null, calMsg:"",
+  inbox:{items:[]}, presets:{items:[]}, presetEdit:null, meta:{energy:"ok", closed:false}, sheet:null, alert:null, calMsg:"",
   cal:(() => { const p = lsGet("calPrefs") || {}; return {kind:"day", ahead:[5, 10, 30, 60].includes(p.ahead) ? p.ahead : 10, flex:p.flex !== false}; })(), reviewSeen:"", reviewKeep:{}, reviewEnergy:"ok"
 };
 const dayId = k => "day-" + k;
@@ -1002,6 +1011,17 @@ function cleanMeta(d){
   if (d && (d.energy === "good" || d.energy === "tired")) out.energy = d.energy;
   if (d && d.closed) out.closed = true;
   return out;
+}
+const defaultPresets = () => PRESETS.map(([title, cat, min], i) => ({id:"p" + i, title, cat, min}));
+function cleanPresets(d){
+  if (!d || !Array.isArray(d.items)) return {items:defaultPresets()};
+  const items = [];
+  for (const x of d.items.slice(0, 40)) {
+    if (!x || typeof x !== "object") continue;
+    const id = String(x.id || "").replace(/[^a-z0-9]/gi, "").slice(0, 16) || uid(), title = String(x.title || "").slice(0, 120).trim();
+    if (title) items.push({id, title, cat:safeCat(x.cat), min:r5(clampNum(x.min, 5, 600, 30))});
+  }
+  return {items};
 }
 function cleanInbox(d){
   const items = [];
@@ -1154,22 +1174,25 @@ function addTask(title, cat, min, fixed){
 function submitDraft(){
   const d = S.draft; if (!d.title.trim()) { $("#title")?.focus(); return; }
   updateDraftEstimate();
-  if (d.cat === "lesson" && d.withPrep && !S.tasks.some(t => norm(t.title) === norm("Подготовка: " + d.title))) {
+  const date = DATE_RE_T.test(d.date) ? d.date : S.date;
+  const list = date === S.date ? S.tasks : loadDay(date).tasks;
+  if (d.cat === "lesson" && d.withPrep && !list.some(t => norm(t.title) === norm("Подготовка: " + d.title))) {
     const pe = estimate("Подготовка к занятию");
-    S.tasks.push({id:uid(), title:"Подготовка: " + d.title.trim(), cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false});
+    list.push({id:uid(), title:"Подготовка: " + d.title.trim(), cat:"prep", min:pe.cat === "prep" ? pe.min : 20, fixed:"", done:false});
   }
-  addTask(d.title, d.cat, d.min, d.fixed);
-  S.flash = `Добавлено: ${d.title.trim()}`;
-  S.draft = {title:"", cat:null, min:null, fixed:"", catManual:false, minManual:false, withPrep:true, ai:null, why:""};
+  list.push({id:uid(), title:d.title.trim(), cat:safeCat(d.cat), min:r5(d.min||30), fixed:TIME_RE.test(d.fixed) ? d.fixed : "", done:false});
+  S.flash = `Добавлено: ${d.title.trim()} — ${relLabel(date)}${d.fixed ? ", в " + d.fixed : ""}`;
+  S.draft = {title:"", cat:null, min:null, fixed:"", date:"", catManual:false, minManual:false, withPrep:true, ai:null, why:""};
   S.aiMsg = ""; S.sheet = null;
-  saveDay(); render();
+  if (date === S.date) saveDay(); else { const L = loadDay(date); saveOtherDay(date, list, L.skip); }
+  render();
 }
+/* a quick task fills the form, so its day, time and length can still be changed before adding */
 function addPreset(i){
-  const [title, cat] = PRESETS[i];
-  const e = estimate(title);
-  addTask(title, cat, e.min, "");
-  S.flash = `Добавлено: ${title}`; S.sheet = null;
-  saveDay(); render();
+  const p = S.presets.items[i]; if (!p) return;
+  S.draft = {...S.draft, title:p.title, cat:p.cat, min:p.min, catManual:true, minManual:true, ai:null, why:"быстрая задача — время можно поменять"};
+  render();
+  setTimeout(() => { const el = document.getElementById("draft-form"); if (el && el.scrollIntoView) el.scrollIntoView({block:"center", behavior:"smooth"}); }, 30);
 }
 function toggleDone(id){
   const t = S.tasks.find(x => x.id === id); if (!t) return;
@@ -1289,26 +1312,33 @@ function icsFold(line){            // lines longer than 75 bytes are folded, as 
   for (const ch of line) { const b = enc.encode(ch).length; if (n + b > 73) { out += cur + "\r\n "; cur = ""; n = 1; } cur += ch; n += b; }
   return out + cur;
 }
+/* regular tasks go to the calendar once as repeating events; they are sent again only if they were changed */
+const recSig = () => JSON.stringify(S.recurring.items.filter(r => r.fixed).map(r => [r.id, r.title, r.fixed, r.min, r.days]).sort());
+function recExported(){ const v = lsGet("icsRecurring"); return !!v && (typeof v === "string" || v.sig === recSig()); }
 function buildIcs(kind, ahead, withFlex){
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const ev = [], today = dkey(new Date());
   const alarm = title => ahead > 0 ? ["BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + icsEsc(title), `TRIGGER:-PT${Number(ahead)}M`, "END:VALARM"] : [];
-  const recDone = !!lsGet("icsRecurring");
-  if (kind === "rec") {
+  const withRec = kind === "rec" || !recExported();
+  const recCovered = withRec || recExported();          // lessons of regular tasks come from the repeating events
+  let recCount = 0;
+  if (withRec) {
     for (const r of S.recurring.items) {
       if (!r.fixed) continue;
       let k = r.from > today ? r.from : today; for (let i = 0; i < 7 && !r.days.includes(fromKey(k).getDay()); i++) k = addDays(k, 1);
       const s = toMin(r.fixed);
       ev.push(["BEGIN:VEVENT", `UID:rec-${r.id}@den-viktorii`, "DTSTAMP:" + stamp, "DTSTART:" + icsDT(k, s), "DTEND:" + icsDT(k, s + r.min),
         "RRULE:FREQ=WEEKLY;BYDAY=" + r.days.map(d => ICS_DAY[d]).join(","), "SUMMARY:" + icsEsc(r.title), "DESCRIPTION:" + icsEsc("Постоянное дело из «Мой день»"), ...alarm(r.title), "END:VEVENT"]);
+      recCount++;
     }
-  } else {
+  }
+  if (kind !== "rec") {
     const days = kind === "week" ? Array.from({length:7}, (_, i) => addDays(weekStart(S.date), i)).filter(k => k >= today) : [S.date];
     for (const k of days) {
       const {plan} = planFor(k);
       for (const p of plan.placed) {
         const t = p.t;
-        if (t.done || (!t.fixed && !withFlex) || (recDone && t.rid && !t.rid.endsWith("p") && !t.custom)) continue;
+        if (t.done || (!t.fixed && !withFlex) || (recCovered && t.rid && !t.rid.endsWith("p") && !t.custom && S.recurring.items.some(r => r.id === t.rid && r.fixed))) continue;
         if (k === today && p.e <= nowMinutes()) continue;
         const L = t.list || [];
         const desc = ((t.fixed ? "" : "Время по плану, может сдвинуться. ") + (L.length ? "Чек-лист: " + L.map(x => (x.d ? "✓ " : "• ") + x.t).join("; ") : "")).trim();
@@ -1318,15 +1348,16 @@ function buildIcs(kind, ahead, withFlex){
     }
   }
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Moj den//RU", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Мой день", ...ev.flat(), "END:VCALENDAR"];
-  return {text:lines.map(icsFold).join("\r\n") + "\r\n", count:ev.length};
+  return {text:lines.map(icsFold).join("\r\n") + "\r\n", count:ev.length, recCount};
 }
 function icsCounts(){
   const r = {};
-  for (const kind of ["day", "week", "rec"]) r[kind] = buildIcs(kind, 0, S.cal.flex).count;
+  for (const kind of ["day", "week", "rec"]) { const b = buildIcs(kind, 0, S.cal.flex); r[kind] = b.count - (kind === "rec" ? 0 : b.recCount); r.rec = kind === "rec" ? b.count : r.rec; }
+  r.recPending = !recExported();
   return r;
 }
 function exportIcs(share){
-  const {text, count} = buildIcs(S.cal.kind, S.cal.ahead, S.cal.flex);
+  const {text, count, recCount} = buildIcs(S.cal.kind, S.cal.ahead, S.cal.flex);
   if (!count) { S.calMsg = "Нечего добавлять: нет дел со временем."; render(); return; }
   const name = S.cal.kind === "rec" ? "moj-den-postoyannye.ics" : S.cal.kind === "week" ? "moj-den-nedelya.ics" : `moj-den-${S.date}.ics`;
   const file = new Blob([text], {type:"text/calendar;charset=utf-8"});
@@ -1337,22 +1368,23 @@ function exportIcs(share){
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
-  if (S.cal.kind === "rec") lsSet("icsRecurring", dkey(new Date()));
+  if (recCount) lsSet("icsRecurring", {at:dkey(new Date()), sig:recSig()});
   S.cal.ahead = Number(S.cal.ahead); lsSet("calPrefs", {ahead:S.cal.ahead, flex:S.cal.flex});
-  S.calMsg = `Файл с ${count} ${plural(count, "событием", "событиями", "событиями")} готов. iPhone покажет список — нажмите «Добавить все».`;
+  const one = count - recCount;
+  S.calMsg = `Готово: ${one ? `${one} ${plural(one, "дело", "дела", "дел")}` : ""}${one && recCount ? " и " : ""}${recCount ? `${recCount} ${plural(recCount, "постоянное", "постоянных", "постоянных")} (повторяются каждую неделю)` : ""}. iPhone покажет список — нажмите «Добавить все».`;
   render();
 }
 function calSheet(){
-  const c = icsCounts(), recDone = lsGet("icsRecurring");
+  const c = icsCounts(), recDone = recExported(), recNote = c.rec ? (c.recPending ? ` + ${c.rec} ${plural(c.rec, "постоянное дело", "постоянных дела", "постоянных дел")} с повтором` : " · постоянные уже в календаре") : "";
   const opt = (k, title, sub) => `<button class="copt" data-act="calkind" data-k="${esc(k)}" aria-pressed="${S.cal.kind === k ? "true" : "false"}"><span class="radio"></span><span class="body"><b>${esc(title)}</b><small>${esc(sub)}</small></span></button>`;
   return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Напоминания в календарь телефона" data-stop="1">
     <h3>Напоминания в календарь телефона</h3>
     <p class="store" style="margin:0">Дела попадут во встроенный Календарь iPhone. Напоминания будет присылать сам телефон — даже когда приложение закрыто и нет интернета.</p>
-    ${opt("day", relLabel(S.date)[0].toUpperCase() + relLabel(S.date).slice(1), `${c.day} ${plural(c.day, "дело", "дела", "дел")} со временем`)}
-    ${opt("week", "Вся неделя", `${c.week} ${plural(c.week, "дело", "дела", "дел")} со временем, с сегодняшнего дня`)}
-    ${opt("rec", "Постоянные занятия", c.rec ? `${c.rec} — добавить один раз, дальше повторяются сами${recDone ? " · уже добавляли " + fromKey(recDone).toLocaleDateString("ru-RU", {day:"numeric", month:"long"}) : ""}` : "нет постоянных дел с точным временем")}
+    ${opt("day", (S.date === dkey(new Date()) ? "Сегодня" : relLabel(S.date)[0].toUpperCase() + relLabel(S.date).slice(1)) + " и постоянные дела", `${c.day} ${plural(c.day, "дело", "дела", "дел")} на этот день${recNote}`)}
+    ${opt("week", "Вся неделя и постоянные дела", `${c.week} ${plural(c.week, "дело", "дела", "дел")} с сегодняшнего дня${recNote}`)}
+    ${c.rec ? opt("rec", "Только постоянные дела — заново", "если удалили их из календаря") : ""}
     ${S.cal.kind !== "rec" ? `<label class="check"><input id="cal-flex" type="checkbox" ${S.cal.flex ? "checked" : ""}> Вместе с делами без точного времени (по текущему плану)</label>` : ""}
-    ${recDone && S.cal.kind !== "rec" ? `<div class="why">Постоянные занятия уже в календаре — второй раз их не добавляем.</div>` : ""}
+    ${recDone && S.cal.kind !== "rec" && c.rec ? `<div class="why">Постоянные дела уже в календаре и повторяются сами — второй раз не добавляем. Изменили их в приложении — добавятся заново автоматически.</div>` : ""}
     <div class="why">Напомнить заранее:</div>
     <div class="seg">${[5, 10, 30, 60].map(m => `<button data-act="calahead" data-m="${Number(m)}" aria-pressed="${Number(S.cal.ahead) === m ? "true" : "false"}">${m === 60 ? "1 ч" : Number(m) + " мин"}</button>`).join("")}</div>
     <button class="primary big" data-act="calgo">Добавить в календарь</button>
@@ -1537,6 +1569,7 @@ function render(){
   ${!S.editing && !S.showSettings && S.sheet === "stats" ? statsSheet() : ""}
   ${!S.editing && !S.showSettings && S.sheet === "review" ? reviewSheet() : ""}
   ${!S.editing && !S.showSettings && S.sheet === "cal" ? calSheet() : ""}
+  ${!S.editing && !S.showSettings && S.sheet === "presets" ? presetSheet() : ""}
   ${S.alert ? alertBox() : ""}`;
 
   if (active === "title" || active === "phrase") { const el = document.getElementById(active); if (el) { el.focus(); if (caret !== null) el.setSelectionRange(caret, caret); } }
@@ -1577,7 +1610,8 @@ function addSheet(){
       <textarea id="phrase" class="field" rows="2" placeholder="Например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
       <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Без даты: «на потом купить ламинатор».</div>
       ${S.phrase ? `<div class="suggest" aria-live="polite">
-        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map(a => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}</li>`).join("")}</ul>
+        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map((a, i) => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}${a.type === "add" ? `<div class="pick"><label>День <input class="time" type="date" data-pa="date" data-i="${Number(i)}" value="${esc(a.date)}"></label><label>Время <input class="time" type="time" data-pa="time" data-i="${Number(i)}" value="${esc(a.fixed || "")}"></label></div>` : ""}</li>`).join("")}</ul>
+        ${S.phrase.some(a => a.type === "add") ? `<div class="why">День и время можно поменять — нажмите на них. Пустое время — впишем в свободное окно.</div>` : ""}
         <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
         : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
       </div>` : `<div class="row">
@@ -1587,6 +1621,7 @@ function addSheet(){
     <section class="add" aria-label="Новая задача">
       <label class="big" for="title">Или по шагам</label>
       <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
+      <div class="pick" id="draft-form"><label>День <input id="d-date" class="time" type="date" value="${esc(DATE_RE_T.test(d.date) ? d.date : S.date)}"></label><label>Время <input id="fixed" class="time" type="time" value="${esc(d.fixed)}"></label>${d.fixed ? `<button class="linkbtn" data-act="clearfixed">без времени</button>` : ""}</div>
       ${d.title.trim() ? `<div class="suggest">
         <div class="estimate">
           <button class="step" data-act="min" data-d="-15">−15</button><button class="step" data-act="min" data-d="-5">−5</button>
@@ -1595,19 +1630,39 @@ function addSheet(){
         </div>
         <div class="why" id="draft-why">${esc(d.why||"")}</div>
         <div class="cats" role="group" aria-label="Вид дела">${draftCats}</div>
-        <div class="row"><label for="fixed">Точное время</label><input id="fixed" class="time" type="time" value="${esc(d.fixed)}">${d.fixed?`<button class="linkbtn" data-act="clearfixed">убрать</button>`:`<span class="why">или впишем в свободное окно</span>`}</div>
+        ${d.fixed ? "" : `<div class="why">Без точного времени — впишем в свободное окно.</div>`}
         ${d.cat==="lesson"?`<label class="check"><input id="withprep" type="checkbox" ${d.withPrep?"checked":""}> Добавить подготовку к этому занятию</label>`:""}
         <div class="row"><button class="primary" data-act="add">Добавить в план</button></div>
       </div>` : ""}
     </section>
     <section class="presets" aria-label="Быстро добавить">
       <h2>Быстро добавить</h2>
-      <div class="chips">${PRESETS.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p[1])}"></i>${esc(p[0])}</b><span class="num">${dur(estimate(p[0]).min)}</span></button>`).join("")}</div>
+      <div class="chips">${S.presets.items.map((p,i) => `<button class="chip" data-act="preset" data-i="${Number(i)}"><b><i style="background:${color(p.cat)}"></i>${esc(p.title)}</b><span class="num">${dur(p.min)}</span></button>`).join("")}</div>
+      <div class="row"><button class="ghost" data-act="presetedit">✎ Изменить быстрые задачи</button><span class="why">Нажмите на задачу — она подставится в форму выше, останется выбрать день и время.</span></div>
     </section>
     <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
   </div></div>`;
 }
 
+function presetSheet(){
+  const L = S.presetEdit || [];
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Быстрые задачи" data-stop="1">
+    <h3>Быстрые задачи</h3>
+    <p class="store" style="margin:0">Название, сколько минут и вид дела. Изменения сохранятся на телефоне.</p>
+    <ul class="pedit">${L.map((p, i) => `<li>
+      <input class="field" data-pe="title" data-i="${Number(i)}" value="${esc(p.title)}" aria-label="Название">
+      <div class="row"><label>Минут <input class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" data-pe="min" data-i="${Number(i)}" value="${Number(p.min)}"></label>
+        <select class="time" data-pe="cat" data-i="${Number(i)}" aria-label="Вид дела">${CAT_ORDER.map(c => `<option value="${esc(c)}" ${p.cat === c ? "selected" : ""}>${esc(CATS[c].short)}</option>`).join("")}</select>
+        <button class="clx" data-act="pedel" data-i="${Number(i)}" aria-label="Удалить">✕</button></div></li>`).join("")}</ul>
+    <button class="ghost" data-act="peadd">+ Добавить быструю задачу</button>
+    <button class="linkbtn" data-act="pereset" style="align-self:flex-start">Вернуть список по умолчанию</button>
+    <div class="actions"><button class="ghost" data-act="pecancel">Отмена</button><button class="primary" data-act="pesave">Сохранить</button></div>
+  </div></div>`;
+}
+function keepPresetInputs(){
+  document.querySelectorAll("[data-pe]").forEach(el => { const p = S.presetEdit && S.presetEdit[Number(el.dataset.i)]; if (!p) return;
+    const k = el.dataset.pe; if (k === "title") p.title = el.value; if (k === "min") p.min = el.value; if (k === "cat") p.cat = safeCat(el.value); });
+}
 function inboxSheet(){
   const items = S.inbox.items, today = dkey(new Date());
   return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Входящие" data-stop="1">
@@ -1707,10 +1762,10 @@ function closeDay(){
 
 function keepSheetDraft(){
   const t = S.tasks.find(x => x.id === S.editing); if (!t) return;
-  const ti = $("#e-title"), mi = $("#e-min"), fi = $("#e-fixed");
-  if (ti) t._title = ti.value; if (mi) t._min = mi.value; if (fi) t._fixed = fi.value;
+  const ti = $("#e-title"), mi = $("#e-min"), fi = $("#e-fixed"), di = $("#e-date");
+  if (ti) t._title = ti.value; if (mi) t._min = mi.value; if (fi) t._fixed = fi.value; if (di) t._date = di.value;
 }
-function dropSheetDraft(t){ if (t) { delete t._cat; delete t._title; delete t._min; delete t._fixed; } }
+function dropSheetDraft(t){ if (t) { delete t._cat; delete t._title; delete t._min; delete t._fixed; delete t._date; } }
 function editSheet(){
   const t = S.tasks.find(x => x.id === S.editing); if (!t) { S.editing = null; return ""; }
   const L = t.list || [], flexIds = S.tasks.filter(x => !x.fixed).map(x => x.id), fi = flexIds.indexOf(t.id);
@@ -1720,7 +1775,8 @@ function editSheet(){
     <input id="e-title" class="field" value="${esc(t._title !== undefined ? t._title : t.title)}" aria-label="Название">
     <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${curCat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
     <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${esc(t._min !== undefined ? t._min : String(Number(t.min)||30))}">
-      <label for="e-fixed">Точное время</label><input id="e-fixed" class="time" type="time" value="${esc(t._fixed !== undefined ? t._fixed : (t.fixed||""))}"></div>
+      <label for="e-fixed">Время</label><input id="e-fixed" class="time" type="time" value="${esc(t._fixed !== undefined ? t._fixed : (t.fixed||""))}"></div>
+    <div class="row"><label for="e-date">День</label><input id="e-date" class="time" type="date" value="${esc(t._date !== undefined ? t._date : S.date)}"><span class="why">другой день — задача переедет туда</span></div>
     ${t.fixed ? "" : `<div class="row"><span class="why">Порядок в дне:</span><button class="ghost" data-act="up" data-id="${esc(t.id)}" ${fi<=0?"disabled":""}>↑ Раньше</button><button class="ghost" data-act="down" data-id="${esc(t.id)}" ${fi>=flexIds.length-1?"disabled":""}>↓ Позже</button></div>`}
     <div class="clbox">
       <div class="row" style="justify-content:space-between"><b>Чек-лист</b>${L.length ? `<span class="why num">${Number(L.filter(x => x.d).length)} из ${Number(L.length)}</span>` : ""}</div>
@@ -1814,6 +1870,7 @@ function doRestore(){
 
 /* ---------- events ---------- */
 document.addEventListener("input", e => {
+  if (e.target.dataset && e.target.dataset.pe && S.presetEdit) { const p = S.presetEdit[Number(e.target.dataset.i)]; if (p) { const k = e.target.dataset.pe; if (k === "title") p.title = e.target.value; if (k === "min") p.min = e.target.value; } return; }
   if (e.target.id === "phrase") { const had = !!S.phraseText.trim(); S.phraseText = e.target.value; if (S.phrase || had !== !!S.phraseText.trim()) { S.phrase = null; render(); } return; }
   if (e.target.id === "title") {
     const had = !!S.draft.title.trim();
@@ -1829,6 +1886,11 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => {
   if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
+  if (e.target.id === "d-date") { S.draft.date = DATE_RE_T.test(e.target.value) ? e.target.value : ""; }
+  if (e.target.dataset && e.target.dataset.pa && S.phrase) { const a = S.phrase[Number(e.target.dataset.i)];
+    if (a && a.type === "add") { if (e.target.dataset.pa === "date" && DATE_RE_T.test(e.target.value)) a.date = e.target.value; if (e.target.dataset.pa === "time") a.fixed = TIME_RE.test(e.target.value) ? e.target.value : ""; render(); } }
+  if (e.target.dataset && e.target.dataset.pe && S.presetEdit) { const p = S.presetEdit[Number(e.target.dataset.i)];
+    if (p) { const k = e.target.dataset.pe; if (k === "title") p.title = e.target.value; if (k === "min") p.min = e.target.value; if (k === "cat") p.cat = safeCat(e.target.value); } }
   if (e.target.id === "withprep") { S.draft.withPrep = e.target.checked; }
   if (e.target.id === "cal-flex") { S.cal.flex = e.target.checked; render(); }
 });
@@ -1880,7 +1942,16 @@ document.addEventListener("click", e => {
           else if (t.rid && !days.length) { const rid = t.rid; delete t.rid; delete t.custom; S.recurring = {items:S.recurring.items.filter(r => r.id !== rid)}; saveRecurring(); }
           else if (!t.rid && days.length) { const it = addRecurring({title:t.title, cat:t.cat, min:t.min, fixed:t.fixed, days, prep:false}); t.rid = it.id; }
         } else t.custom = true;
-        dropSheetDraft(t); saveDay(); refreshToday(); }
+        const nd = ($("#e-date") || {}).value;
+        dropSheetDraft(t);
+        if (DATE_RE_T.test(nd) && nd !== S.date) {          // moved to another day
+          if (t.rid) S.skip.push(t.rid);
+          S.tasks = S.tasks.filter(x => x.id !== t.id);
+          const cp = {...t, id:uid()}; delete cp.rid; delete cp.custom; delete cp.actual; cp.done = false;
+          const L = loadDay(nd); saveOtherDay(nd, [...L.tasks, cp], L.skip);
+          S.flash = `Перенесено: ${t.title} — ${relLabel(nd)}${t.fixed ? ", в " + t.fixed : ""}`;
+        }
+        saveDay(); refreshToday(); }
       S.editing = null; render(); break; }
     case "delete": { const t = S.tasks.find(x => x.id === S.editing); if (t && t.rid) S.skip.push(t.rid);
       S.tasks = S.tasks.filter(x => x.id !== S.editing); S.editing = null; saveDay(); render(); break; }
@@ -1919,6 +1990,12 @@ document.addEventListener("click", e => {
       break; }
     case "safetyrestore": safetyRestore(); break;
     case "calsheet": S.sheet = "cal"; S.calMsg = ""; render(); break;
+    case "presetedit": S.presetEdit = S.presets.items.map(p => ({...p})); S.sheet = "presets"; render(); break;
+    case "pedel": if (S.presetEdit) { keepPresetInputs(); S.presetEdit.splice(Number(el.dataset.i), 1); } render(); break;
+    case "peadd": if (S.presetEdit && S.presetEdit.length < 40) { keepPresetInputs(); S.presetEdit.push({id:uid(), title:"", cat:"other", min:30}); render(); setTimeout(() => { const all = document.querySelectorAll('[data-pe="title"]'); all.length && all[all.length - 1].focus(); }, 30); } break;
+    case "pereset": S.presetEdit = defaultPresets(); render(); break;
+    case "pecancel": S.presetEdit = null; S.sheet = "add"; render(); break;
+    case "pesave": keepPresetInputs(); S.presets = cleanPresets({items:S.presetEdit || []}); store.save("presets", S.presets); S.presetEdit = null; S.sheet = "add"; render(); break;
     case "calkind": S.cal.kind = ["day", "week", "rec"].includes(el.dataset.k) ? el.dataset.k : "day"; S.calMsg = ""; render(); break;
     case "calahead": S.cal.ahead = [5, 10, 30, 60].includes(Number(el.dataset.m)) ? Number(el.dataset.m) : 10; render(); break;
     case "calgo": exportIcs(false); break;
@@ -1961,6 +2038,7 @@ document.addEventListener("click", e => {
 // one-time safety copy of all data, made before this version changes anything (kept on the device only, not synced)
 try { if (!localStorage.getItem(LSP + "safety-v10")) { const docs = localDocs(); if (Object.keys(docs).length) localStorage.setItem(LSP + "safety-v10", JSON.stringify({at:new Date().toISOString(), docs})); } } catch(e) {}
 store.watch("inbox", d => { S.inbox = cleanInbox(d); render(); });
+store.watch("presets", d => { S.presets = cleanPresets(d); render(); });
 store.watch("settings", d => { S.settings = cleanSettings(d); render(); });
 store.watch("stats", d => { S.stats = cleanStats(d); render(); });
 store.watch("recurring", d => { S.recurring = cleanRecurring(d); refreshToday(); render(); });
