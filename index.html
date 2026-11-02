@@ -253,6 +253,11 @@ header.day{gap:10px; padding-block:12px 8px}
 .ebtn{height:44px; border-radius:12px; border:1px solid var(--line); background:var(--surface); font-weight:600}
 .ebtn[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .sheet .big{height:54px; font-size:17px; border-radius:16px}
+.pick:has(+ .clash) input, .row:has(+ .clash) input{border:2px solid var(--warn)}
+.clash{margin-top:8px; border:2px solid var(--warn); background:var(--warn-bg); border-radius:12px; padding:10px 12px; font-size:14px; display:flex; flex-direction:column; gap:8px}
+.cgrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px}
+.cbtn{min-height:44px; border-radius:10px; border:1px solid var(--line); background:var(--surface); font-size:13px; font-weight:700; padding:4px 6px; line-height:1.2}
+.cbtn[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
 .pick{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px}
 .pick label{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--muted)}
 .pick input{min-height:40px}
@@ -924,7 +929,7 @@ const S = {
   settings: {...DEFAULT_SETTINGS},
   stats: {items:{}},
   tasks: [],
-  draft: {title:"", cat:null, min:null, fixed:"", date:"", catManual:false, minManual:false, withPrep:true, ai:null},
+  draft: {title:"", cat:null, min:null, fixed:"", date:"", clash:"both", catManual:false, minManual:false, withPrep:true, ai:null},
   askingDone: null,
   editing: null,
   showSettings: false,
@@ -1175,6 +1180,9 @@ function submitDraft(){
   const d = S.draft; if (!d.title.trim()) { $("#title")?.focus(); return; }
   updateDraftEstimate();
   const date = DATE_RE_T.test(d.date) ? d.date : S.date;
+  const clash = overlaps(date, d.fixed, d.min);
+  if (clash.length && d.clash === "old") { S.flash = `Не добавлено: ${d.title.trim()} — оставлено «${clash.map(t => t.title).join("», «")}»`; S.draft = {title:"", cat:null, min:null, fixed:"", date:"", clash:"both", catManual:false, minManual:false, withPrep:true, ai:null, why:""}; S.sheet = null; render(); return; }
+  if (clash.length && d.clash === "new") removeTasks(date, clash.map(t => t.id));
   const list = date === S.date ? S.tasks : loadDay(date).tasks;
   if (d.cat === "lesson" && d.withPrep && !list.some(t => norm(t.title) === norm("Подготовка: " + d.title))) {
     const pe = estimate("Подготовка к занятию");
@@ -1182,10 +1190,31 @@ function submitDraft(){
   }
   list.push({id:uid(), title:d.title.trim(), cat:safeCat(d.cat), min:r5(d.min||30), fixed:TIME_RE.test(d.fixed) ? d.fixed : "", done:false});
   S.flash = `Добавлено: ${d.title.trim()} — ${relLabel(date)}${d.fixed ? ", в " + d.fixed : ""}`;
-  S.draft = {title:"", cat:null, min:null, fixed:"", date:"", catManual:false, minManual:false, withPrep:true, ai:null, why:""};
+  S.draft = {title:"", cat:null, min:null, fixed:"", date:"", clash:"both", catManual:false, minManual:false, withPrep:true, ai:null, why:""};
   S.aiMsg = ""; S.sheet = null;
   if (date === S.date) saveDay(); else { const L = loadDay(date); saveOtherDay(date, list, L.skip); }
   render();
+}
+/* tasks with an exact time on that day that overlap the chosen time */
+function overlaps(date, fixed, min, excludeId){
+  if (!TIME_RE.test(fixed || "") || !DATE_RE_T.test(date || "")) return [];
+  const list = date === S.date ? S.tasks : loadDay(date).tasks;
+  const st = toMin(fixed), en = st + (Number(min) || 30);
+  return list.filter(t => t.id !== excludeId && !t.done && t.fixed && toMin(t.fixed) < en && toMin(t.fixed) + t.min > st);
+}
+function removeTasks(date, ids){
+  if (!ids.length) return;
+  if (date === S.date) { S.tasks.filter(t => ids.includes(t.id) && t.rid).forEach(t => S.skip.push(t.rid)); S.tasks = S.tasks.filter(t => !ids.includes(t.id)); saveDay(); return; }
+  const L = loadDay(date), skip = [...L.skip];
+  L.tasks.filter(t => ids.includes(t.id) && t.rid).forEach(t => skip.push(t.rid));
+  saveOtherDay(date, L.tasks.filter(t => !ids.includes(t.id)), skip);
+}
+function clashBox(list, choice, act, i, newWord){
+  if (!list.length) return "";
+  const names = list.map(t => `${esc(t.fixed)}–${hhmm(toMin(t.fixed) + t.min)} ${esc(t.title)}`).join("; ");
+  const opt = (v, label) => `<button class="cbtn" data-act="${esc(act)}" data-v="${esc(v)}" data-i="${Number(i)}" aria-pressed="${choice === v ? "true" : "false"}">${esc(label)}</button>`;
+  return `<div class="clash" role="alert"><b>Пересекается по времени:</b> ${names}
+    <div class="cgrid">${opt("both", "Оставить оба")}${opt("new", newWord === "edit" ? "Убрать другое" : "Оставить только новое")}${opt("old", newWord === "edit" ? "Не менять время" : "Не добавлять")}</div></div>`;
 }
 /* a quick task fills the form, so its day, time and length can still be changed before adding */
 function addPreset(i){
@@ -1610,7 +1639,7 @@ function addSheet(){
       <textarea id="phrase" class="field" rows="2" placeholder="Например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
       <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Без даты: «на потом купить ламинатор».</div>
       ${S.phrase ? `<div class="suggest" aria-live="polite">
-        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map((a, i) => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}${a.type === "add" ? `<div class="pick"><label>День <input class="time" type="date" data-pa="date" data-i="${Number(i)}" value="${esc(a.date)}"></label><label>Время <input class="time" type="time" data-pa="time" data-i="${Number(i)}" value="${esc(a.fixed || "")}"></label></div>` : ""}</li>`).join("")}</ul>
+        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map((a, i) => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}${a.type === "add" ? `<div class="pick"><label>День <input class="time" type="date" data-pa="date" data-i="${Number(i)}" value="${esc(a.date)}"></label><label>Время <input class="time" type="time" data-pa="time" data-i="${Number(i)}" value="${esc(a.fixed || "")}"></label></div>${clashBox(overlaps(a.date, a.fixed, a.min), a.clash || "both", "pclash", i)}` : ""}</li>`).join("")}</ul>
         ${S.phrase.some(a => a.type === "add") ? `<div class="why">День и время можно поменять — нажмите на них. Пустое время — впишем в свободное окно.</div>` : ""}
         <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
         : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
@@ -1622,6 +1651,7 @@ function addSheet(){
       <label class="big" for="title">Или по шагам</label>
       <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
       <div class="pick" id="draft-form"><label>День <input id="d-date" class="time" type="date" value="${esc(DATE_RE_T.test(d.date) ? d.date : S.date)}"></label><label>Время <input id="fixed" class="time" type="time" value="${esc(d.fixed)}"></label>${d.fixed ? `<button class="linkbtn" data-act="clearfixed">без времени</button>` : ""}</div>
+      ${clashBox(overlaps(DATE_RE_T.test(d.date) ? d.date : S.date, d.fixed, d.min || 30), d.clash, "dclash", 0)}
       ${d.title.trim() ? `<div class="suggest">
         <div class="estimate">
           <button class="step" data-act="min" data-d="-15">−15</button><button class="step" data-act="min" data-d="-5">−5</button>
@@ -1765,7 +1795,7 @@ function keepSheetDraft(){
   const ti = $("#e-title"), mi = $("#e-min"), fi = $("#e-fixed"), di = $("#e-date");
   if (ti) t._title = ti.value; if (mi) t._min = mi.value; if (fi) t._fixed = fi.value; if (di) t._date = di.value;
 }
-function dropSheetDraft(t){ if (t) { delete t._cat; delete t._title; delete t._min; delete t._fixed; delete t._date; } }
+function dropSheetDraft(t){ if (t) { delete t._cat; delete t._title; delete t._min; delete t._fixed; delete t._date; delete t._origFixed; } }
 function editSheet(){
   const t = S.tasks.find(x => x.id === S.editing); if (!t) { S.editing = null; return ""; }
   const L = t.list || [], flexIds = S.tasks.filter(x => !x.fixed).map(x => x.id), fi = flexIds.indexOf(t.id);
@@ -1776,6 +1806,7 @@ function editSheet(){
     <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${curCat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
     <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${esc(t._min !== undefined ? t._min : String(Number(t.min)||30))}">
       <label for="e-fixed">Время</label><input id="e-fixed" class="time" type="time" value="${esc(t._fixed !== undefined ? t._fixed : (t.fixed||""))}"></div>
+    ${clashBox(overlaps(t._date !== undefined ? t._date : S.date, t._fixed !== undefined ? t._fixed : t.fixed, t._min !== undefined ? t._min : t.min, t.id), S.editClash || "both", "eclash", 0, "edit")}
     <div class="row"><label for="e-date">День</label><input id="e-date" class="time" type="date" value="${esc(t._date !== undefined ? t._date : S.date)}"><span class="why">другой день — задача переедет туда</span></div>
     ${t.fixed ? "" : `<div class="row"><span class="why">Порядок в дне:</span><button class="ghost" data-act="up" data-id="${esc(t.id)}" ${fi<=0?"disabled":""}>↑ Раньше</button><button class="ghost" data-act="down" data-id="${esc(t.id)}" ${fi>=flexIds.length-1?"disabled":""}>↓ Позже</button></div>`}
     <div class="clbox">
@@ -1886,7 +1917,8 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => {
   if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
-  if (e.target.id === "d-date") { S.draft.date = DATE_RE_T.test(e.target.value) ? e.target.value : ""; }
+  if (e.target.id === "d-date") { S.draft.date = DATE_RE_T.test(e.target.value) ? e.target.value : ""; render(); }
+  if (e.target.id === "e-fixed" || e.target.id === "e-date" || e.target.id === "e-min") { keepSheetDraft(); render(); }
   if (e.target.dataset && e.target.dataset.pa && S.phrase) { const a = S.phrase[Number(e.target.dataset.i)];
     if (a && a.type === "add") { if (e.target.dataset.pa === "date" && DATE_RE_T.test(e.target.value)) a.date = e.target.value; if (e.target.dataset.pa === "time") a.fixed = TIME_RE.test(e.target.value) ? e.target.value : ""; render(); } }
   if (e.target.dataset && e.target.dataset.pe && S.presetEdit) { const p = S.presetEdit[Number(e.target.dataset.i)];
@@ -1927,7 +1959,7 @@ document.addEventListener("click", e => {
     case "skipactual": S.askingDone = null; render(); break;
     case "up": move(id,-1); break;
     case "down": move(id,1); break;
-    case "edit": { S.editing = id; const t = S.tasks.find(x => x.id === id); const r = t && t.rid ? S.recurring.items.find(x => x.id === t.rid) : null; S.editDays = r ? [...r.days] : []; render(); break; }
+    case "edit": { S.editing = id; S.editClash = "both"; const t = S.tasks.find(x => x.id === id); if (t) t._origFixed = t.fixed; const r = t && t.rid ? S.recurring.items.find(x => x.id === t.rid) : null; S.editDays = r ? [...r.days] : []; render(); break; }
     case "ecat": { const t = S.tasks.find(x => x.id === S.editing); if (t) { t._cat = el.dataset.cat; document.querySelectorAll('.sheet .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === el.dataset.cat))); } break; }
     case "eday": { const x = Number(el.dataset.day); S.editDays = S.editDays.includes(x) ? S.editDays.filter(y => y !== x) : [...S.editDays, x];
       el.setAttribute("aria-pressed", String(S.editDays.includes(x))); break; }
@@ -1943,6 +1975,10 @@ document.addEventListener("click", e => {
           else if (!t.rid && days.length) { const it = addRecurring({title:t.title, cat:t.cat, min:t.min, fixed:t.fixed, days, prep:false}); t.rid = it.id; }
         } else t.custom = true;
         const nd = ($("#e-date") || {}).value;
+        const tgt = DATE_RE_T.test(nd) ? nd : S.date, clash = overlaps(tgt, t.fixed, t.min, t.id);
+        if (clash.length && S.editClash === "old") { t.fixed = t._origFixed !== undefined ? t._origFixed : t.fixed; dropSheetDraft(t); delete t._origFixed; saveDay(); S.editing = null; S.editClash = "both"; S.flash = "Время не изменено."; render(); break; }
+        if (clash.length && S.editClash === "new") removeTasks(tgt, clash.map(x => x.id));
+        delete t._origFixed; S.editClash = "both";
         dropSheetDraft(t);
         if (DATE_RE_T.test(nd) && nd !== S.date) {          // moved to another day
           if (t.rid) S.skip.push(t.rid);
@@ -1990,6 +2026,9 @@ document.addEventListener("click", e => {
       break; }
     case "safetyrestore": safetyRestore(); break;
     case "calsheet": S.sheet = "cal"; S.calMsg = ""; render(); break;
+    case "dclash": S.draft.clash = el.dataset.v; render(); break;
+    case "pclash": { const a = S.phrase && S.phrase[Number(el.dataset.i)]; if (a) a.clash = el.dataset.v; render(); break; }
+    case "eclash": keepSheetDraft(); S.editClash = el.dataset.v; render(); break;
     case "presetedit": S.presetEdit = S.presets.items.map(p => ({...p})); S.sheet = "presets"; render(); break;
     case "pedel": if (S.presetEdit) { keepPresetInputs(); S.presetEdit.splice(Number(el.dataset.i), 1); } render(); break;
     case "peadd": if (S.presetEdit && S.presetEdit.length < 40) { keepPresetInputs(); S.presetEdit.push({id:uid(), title:"", cat:"other", min:30}); render(); setTimeout(() => { const all = document.querySelectorAll('[data-pe="title"]'); all.length && all[all.length - 1].focus(); }, 30); } break;
@@ -2019,7 +2058,15 @@ document.addEventListener("click", e => {
     case "toastopen": { const d = S.toast && S.toast.date; S.toast = null; if (d) goDate(d); else render(); break; }
     case "cancelphrase": S.phrase = null; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
     case "clearphrase": S.phrase = null; S.phraseText = ""; VOICE.msg = ""; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
-    case "applyphrase": { const r = applyActions(S.phrase || []); S.phrase = null; S.phraseText = ""; S.sheet = null;
+    case "applyphrase": {
+      const acts = [];
+      for (const a of S.phrase || []) {
+        const c = a.type === "add" ? overlaps(a.date, a.fixed, a.min) : [];
+        if (c.length && a.clash === "old") continue;
+        if (c.length && a.clash === "new") c.forEach(t => acts.push({type:"del", date:a.date, id:t.id, title:t.title}));
+        acts.push(a);
+      }
+      const r = applyActions(acts); S.phrase = null; S.phraseText = ""; S.sheet = null;
       S.flash = r.n ? `Готово: ${r.n} ${plural(r.n,"изменение","изменения","изменений")}${r.firstDate && r.firstDate !== S.date ? " — смотрите " + relLabel(r.firstDate) : ""}.` : "Нечего применять.";
       render(); break; }
     case "syncon": { if (S.syncBusy) break;
