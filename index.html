@@ -1466,7 +1466,7 @@ function chime(){
   } catch(e) {}
 }
 function checkAlert(){
-  if (!S.settings.alerts || S.alert || document.visibilityState !== "visible") return;
+  if (!S.settings.alerts || S.alert || document.visibilityState !== "visible" || isPicker(document.activeElement)) return;
   const today = dkey(new Date()), nowM = nowMinutes(), seenKey = "alerted-" + today;
   const seen = lsGet(seenKey) || {};
   const {plan} = planFor(today);
@@ -1647,6 +1647,7 @@ function taskRow(t, s, e, plan){
 }
 
 function render(){
+  pendingRender = false; clearTimeout(pendingTimer);
   const app = $("#app");
   const active = document.activeElement && document.activeElement.id;
   const caret = (active === "title" || active === "phrase") ? document.getElementById(active).selectionStart : null;
@@ -2060,7 +2061,19 @@ document.addEventListener("input", e => {
       if (needPrep !== hasPrep) render(); }
   }
 });
+/* On iPhone the date and time wheels send "change" on every turn. Redrawing the screen at that
+   moment closed the wheel, so she had to tap the field again. Now, while a date/time field is
+   open, the value is only remembered; the screen is redrawn once she leaves the field. */
+var pendingRender = false, pendingTimer = 0;
+function isPicker(el){ return !!el && el.tagName === "INPUT" && (el.type === "time" || el.type === "date"); }
+function rr(el){ if (isPicker(el) && document.activeElement === el) pendingRender = true; else render(); }
+document.addEventListener("focusout", e => {
+  if (!isPicker(e.target) || !pendingRender) return;
+  clearTimeout(pendingTimer);
+  pendingTimer = setTimeout(() => { if (pendingRender && !isPicker(document.activeElement)) render(); }, 250);
+});
 document.addEventListener("change", e => {
+  const render = () => rr(e.target);
   if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
   if (e.target.id === "q-date" && S.q && DATE_RE_T.test(e.target.value)) { S.q.date = e.target.value; S.q.fixed = ""; S.q.clash = "both"; render(); }
   if (e.target.id === "q-time" && S.q) { S.q.fixed = TIME_RE.test(e.target.value) ? e.target.value : ""; S.q.clash = "both"; render(); }
