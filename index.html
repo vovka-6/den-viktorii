@@ -268,6 +268,18 @@ header.day{gap:10px; padding-block:12px 8px}
 .qwhat{display:flex; flex-direction:column; gap:2px; border:2px solid var(--accent); border-radius:12px; padding:8px 12px; background:var(--surface)}
 .qwhat small{font-size:11px; font-weight:800; letter-spacing:.04em; color:var(--muted)}
 .qwhat input{border:0; background:transparent; font-size:17px; padding:2px 0; outline:none; color:var(--ink)}
+.tbtn{min-height:44px; padding:0 14px; border-radius:10px; border:1px solid var(--line); background:var(--bg); font-size:16px; color:var(--ink); display:inline-flex; align-items:center; gap:6px}
+.tbtn.empty b{color:var(--muted)}
+.tbtn{white-space:nowrap; flex:none; flex-direction:row !important; width:auto !important}
+.pick:has(+ .clash) .tbtn, .row:has(+ .clash) .tbtn{border:2px solid var(--warn)}
+.tbtn[aria-expanded="true"]{border:2px solid var(--accent)}
+.tpanel{flex-basis:100%; display:flex; flex-direction:column; gap:8px; border:1px solid var(--line); border-radius:14px; padding:10px; background:var(--surface)}
+.tgrid{display:grid; grid-template-columns:repeat(6,1fr); gap:6px}
+.tgrid button{min-height:44px; border-radius:10px; border:1px solid var(--line); background:var(--bg); font-size:16px; font-weight:600; color:var(--ink)}
+.tgrid button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.durs button{min-width:62px}
+.lab3{font-size:13px; color:var(--muted)}
+.pick{flex-wrap:wrap}
 .lab2{font-size:11.5px; font-weight:800; letter-spacing:.05em; color:var(--muted); margin-bottom:-4px}
 .seg2{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
 .seg2 button{min-height:40px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); font-weight:600; font-size:14px}
@@ -830,19 +842,37 @@ function takeDeadline(s){
   return null;
 }
 const INBOX_RE = /(?:^|\s)(?:во\s+входящие|в\s+входящие|когда-нибудь|когда\s+нибудь|без\s+даты|без\s+срока|не\s+срочно)(?=\s|$)/;
+/* bring back capital letters she typed ("звук Р", "ВК", names): the parser works in lower case */
+function keepCase(title, orig){
+  if (!title || !orig) return title;
+  const pat = title.split(" ").map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/е/g, "[её]")).join("\\s+");
+  let m; try { m = new RegExp(pat, "i").exec(orig); } catch (e) { return title; }
+  if (!m) return title;
+  const src = m[0].replace(/\s+/g, " ");
+  if (src.length !== title.length) return title;
+  let out = ""; for (let i = 0; i < title.length; i++) { const o = src[i]; out += (o !== o.toLowerCase()) ? o : title[i]; }
+  return out;
+}
 function parsePhrase(text){
   let raw = spokenToDigits(String(text || "")).replace(/[«»"“”]/g, " ");
   raw = raw.replace(/(^|\s)на\s+потом(?=[\s,.;!?]|$)/g, "$1 во входящие ");
   raw = raw.replace(new RegExp("(" + WD + ")\\s*,\\s*(?=(?:и\\s+)?(?:(?:в|во|по)\\s+)?(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень))", "g"), "$1 и ");
   const noDl = (() => { let x = raw.replace(REC_RE, " "), d; while ((d = takeDeadline(x))) x = d.rest; return x; })();
   const globalDate = takeDate(noDl).date;
-  const clauses = raw.split(/\s*(?:[.;!?\n]+|,|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
+  /* a comma separates tasks only when what follows starts a new one: its own time, day or command.
+     "занятие с Мишей: звук Р, карточки" stays one task; "в 10 занятие, в 15 консультация" — two. */
+  const NEXT = "(?:(?:а|и)\\s+)?(?:(?:в|во|с|к)\\s+\\d{1,2}(?:[:.]\\d{2})?(?![\\d.:]?\\d)(?!\\s*(?:мин|ч\\b|час))|\\d{1,2}[:.]\\d{2}|\\d{1,2}\\s+(?:январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)|сегодня|завтра|послезавтра|через\\s|(?:в|во|по|каждый|каждую|каждое|кажд\\S*)\\s+(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень|будн|день|утро|вечер)|понедельник|вторник|сред[ау]|четверг|пятниц|суббот|воскресень|удали|удалить|убери|отмени|перенеси|перенести|сдвинь|передвинь|переставь|вычеркни|сделала|выполнила|закончила|отметь|на\\s+потом|потом|затем|[^,.;!?\\n]*\\s(?:сделала|сделано|готово|выполнено|выполнила|закончила)(?=\\s*(?:[,.;!?\\n]|$)))";
+  raw = raw.replace(new RegExp(",\\s*(?=" + NEXT + ")", "gi"), " \u2063 ");
+  const clauses = raw.split(/\s*(?:[.;!?\n]+|\u2063|\s(?:а\s+)?(?:потом|затем|после\s+этого)\s)\s*/).map(c => c.trim()).filter(c => c.replace(/[^a-zа-я0-9]/g, "").length > 1);
+  /* a part that is only a day ("во вторник и четверг") belongs to the next part */
+  const DAY_ONLY = /^(?:(?:и|в|во|по|каждый|каждую|каждое|кажд\S*)\s+)*(?:сегодня|завтра|послезавтра|понедельник\S*|вторник\S*|сред\S*|четверг\S*|пятниц\S*|суббот\S*|воскресень\S*|будн\S*)(?:\s+(?:и|,)?\s*(?:(?:в|во|по)\s+)?(?:понедельник\S*|вторник\S*|сред\S*|четверг\S*|пятниц\S*|суббот\S*|воскресень\S*))*$/i;
+  for (let i = clauses.length - 2; i >= 0; i--) if (DAY_ONLY.test(clauses[i])) { clauses[i + 1] = clauses[i] + " " + clauses[i + 1]; clauses.splice(i, 1); }
   const actions = [];
   let ctxDate = globalDate || S.date;
   for (const clause of clauses) {
     let c = " " + clause + " ";
     if (INBOX_RE.test(c)) {
-      const title = tidyTitle(c.replace(new RegExp(INBOX_RE.source, "g"), " "));
+      const title = keepCase(tidyTitle(c.replace(new RegExp(INBOX_RE.source, "g"), " ")), text);
       if (title) { const e = estimate(title); actions.push({type:"inbox", title, cat:e.cat, min:e.min}); }
       continue;
     }
@@ -856,9 +886,9 @@ function parsePhrase(text){
       }
       const du = takeDuration(r); r = du.rest;
       const tm = takeTime(r); r = tm.rest;
-      const title = tidyTitle(r); if (!title) continue;
+      const title = keepCase(tidyTitle(r), text); if (!title) continue;
       const e = estimate(title);
-      actions.push({type:"rec", title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", days:rec.days});
+      actions.push({type:"rec", title, cat:e.cat, min:r5(du.min || 30), fixed:tm.time || "", days:rec.days});
       continue;
     }
     const dl = takeDeadline(c); if (dl) c = dl.rest;
@@ -888,12 +918,12 @@ function parsePhrase(text){
     }
     const du = takeDuration(c); c = du.rest;
     const tm = takeTime(c); c = tm.rest;
-    const title = tidyTitle(c);
+    const title = keepCase(tidyTitle(c), text);
     if (!title) continue;
     const e = estimate(title);
     let addDate = date;
     if (dl && !dt.date) { const today = dkey(new Date()); const before = addDays(dl.due, -1); addDate = before < today ? today : before; }
-    actions.push({type:"add", date:addDate, title, cat:e.cat, min:r5(du.min || e.min), fixed:tm.time || "", due:dl ? dl.due : "", why:du.min ? "" : e.why});
+    actions.push({type:"add", date:addDate, title, cat:e.cat, min:r5(du.min || 30), fixed:tm.time || "", due:dl ? dl.due : "", why:""});
   }
   return actions;
 }
@@ -955,7 +985,7 @@ const S = {
   stats: {items:{}},
   tasks: [],
   draft: {title:"", cat:null, min:null, fixed:"", date:"", clash:"both", catManual:false, minManual:false, withPrep:true, ai:null},
-  askingDone: null,
+  askingDone: null, tp: null, setDraft: null,
   editing: null,
   showSettings: false,
   sample: null, aiBusy:false, aiMsg:"",
@@ -1197,8 +1227,8 @@ function updateDraftEstimate(){
   if (!d.title.trim()) { d.cat = d.catManual ? d.cat : null; if (!d.minManual) d.min = null; d.why = ""; return; }
   const e = estimate(d.title);
   if (!d.catManual) d.cat = e.cat;
-  if (!d.minManual) d.min = e.min;
-  d.why = d.ai ? d.ai : e.why;
+  if (!d.minManual) d.min = 30;   /* duration: she sets it herself, no guessing */
+  d.why = d.ai ? d.ai : "";
 }
 function addTask(title, cat, min, fixed){
   S.tasks.push({id:uid(), title:title.trim(), cat:cat||"other", min:r5(min||30), fixed:fixed||"", done:false});
@@ -1466,7 +1496,7 @@ function chime(){
   } catch(e) {}
 }
 function checkAlert(){
-  if (!S.settings.alerts || S.alert || document.visibilityState !== "visible" || isPicker(document.activeElement)) return;
+  if (!S.settings.alerts || S.alert || document.visibilityState !== "visible" || isPicker(document.activeElement) || isTyping()) return;
   const today = dkey(new Date()), nowM = nowMinutes(), seenKey = "alerted-" + today;
   const seen = lsGet(seenKey) || {};
   const {plan} = planFor(today);
@@ -1490,6 +1520,55 @@ function alertBox(){
     ${cl.length ? `<div class="note good">Чек-лист: ${Number(cl.filter(x => x.d).length)} из ${Number(cl.length)}</div>` : ""}
     <div class="pbtns"><button class="primary" data-act="alstart">Начать</button><button class="ghost" data-act="alsnooze">Через 10 мин</button><button class="ghost" data-act="alclose">Позже</button></div>
   </div></div>`;
+}
+
+const APP_VER = "16";
+/* ---------- own time picker: hour and minute buttons instead of the iPhone wheel ----------
+   The iPhone wheel lost the chosen time; these buttons change the value at once, no keyboard, no wheel. */
+const TP_HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+const TP_MINS = [0,5,10,15,20,25,30,35,40,45,50,55];
+function tpGet(k){
+  if (k === "q") return S.q ? S.q.fixed : "";
+  if (k === "d") return S.draft.fixed;
+  if (k === "e") { const t = S.tasks.find(x => x.id === S.editing); return t ? (t._fixed !== undefined ? t._fixed : (t.fixed || "")) : ""; }
+  if (k === "s-start" || k === "s-end") { const d = S.setDraft || {}; return k === "s-start" ? (d.start || S.settings.dayStart) : (d.end || S.settings.dayEnd); }
+  if (/^p\d+$/.test(k)) { const a = S.phrase && S.phrase[Number(k.slice(1))]; return a ? (a.fixed || "") : ""; }
+  return "";
+}
+function tpSet(k, v){
+  v = TIME_RE.test(v) ? v : "";
+  if (k === "q" && S.q) { S.q.fixed = v; S.q.timeSet = true; S.q.clash = "both"; }
+  if (k === "d") S.draft.fixed = v;
+  if (k === "e") { keepSheetDraft(); const t = S.tasks.find(x => x.id === S.editing); if (t) t._fixed = v; }
+  if (k === "s-start" || k === "s-end") { keepSettingsDraft(); if (v) S.setDraft[k === "s-start" ? "start" : "end"] = v; }
+  if (/^p\d+$/.test(k)) { const a = S.phrase && S.phrase[Number(k.slice(1))]; if (a && a.type === "add") { a.fixed = v; a.clash = "both"; } }
+}
+function keepSettingsDraft(){
+  const g = id => document.getElementById(id);
+  const d = S.setDraft || {};
+  S.setDraft = {start: (g("s-start") || {}).value || d.start || S.settings.dayStart, end: (g("s-end") || {}).value || d.end || S.settings.dayEnd,
+    gap: g("s-gap") ? g("s-gap").value : d.gap, after: g("s-after") ? g("s-after").value : d.after, alerts: g("s-alerts") ? g("s-alerts").checked : d.alerts};
+}
+/* a time field: a button with the time and, when open, hour and minute buttons. `id` keeps a hidden field for code that reads the value */
+function tField(k, id, canClear){
+  const v = tpGet(k), open = S.tp === k;
+  const h = v ? Number(v.slice(0, 2)) : -1, m = v ? Number(v.slice(3, 5)) : -1;
+  const hidden = id ? `<input type="hidden" id="${esc(id)}" value="${esc(v)}">` : "";
+  const btn = `<button type="button" class="tbtn${v ? "" : " empty"}" data-act="tp" data-k="${esc(k)}" aria-expanded="${open ? "true" : "false"}" aria-label="Время${v ? " " + esc(v) : ", не задано"}">🕐 <b class="num">${v ? esc(v) : "—:—"}</b></button>`;
+  if (!open) return hidden + btn;
+  return hidden + btn + `<div class="tpanel" role="group" aria-label="Выбор времени">
+    <div class="lab2">ЧАС</div>
+    <div class="tgrid">${TP_HOURS.map(x => `<button type="button" data-act="tph" data-k="${esc(k)}" data-v="${Number(x)}" aria-pressed="${x === h ? "true" : "false"}">${Number(x)}</button>`).join("")}</div>
+    <div class="lab2">МИНУТЫ</div>
+    <div class="tgrid">${TP_MINS.map(x => `<button type="button" data-act="tpm" data-k="${esc(k)}" data-v="${Number(x)}" aria-pressed="${x === m ? "true" : "false"}">${esc(String(x).padStart(2, "0"))}</button>`).join("")}</div>
+    <div class="row">${canClear ? `<button type="button" class="ghost" data-act="tpclear" data-k="${esc(k)}">Без времени</button>` : ""}<span style="flex:1"></span><button type="button" class="primary" data-act="tpdone">Готово</button></div>
+  </div>`;
+}
+/* duration: she sets it herself — ready buttons plus fine steps */
+const DUR_SET = [15,30,45,60,90,120];
+function durChips(act, cur, extra){
+  const v = Number(cur) || 30;
+  return `<div class="seg2 durs">${DUR_SET.map(x => `<button type="button" data-act="${esc(act)}" data-v="${Number(x)}"${extra ? ` data-i="${Number(extra)}"` : ""} aria-pressed="${x === v ? "true" : "false"}">${esc(dur(x))}</button>`).join("")}</div>`;
 }
 
 /* ---------- quick tasks (⚡): tiles, "what exactly", day and time; editor with icons ---------- */
@@ -1549,9 +1628,12 @@ function qAddSheet(){
     <div class="lab2">ДЕНЬ</div>
     <div class="seg2">${days.map(k => `<button data-act="qday" data-date="${esc(k)}" aria-pressed="${q.date === k ? "true" : "false"}">${esc(dayLbl(k))}</button>`).join("")}<label class="other">📅 <input id="q-date" type="date" value="${esc(q.date)}" aria-label="Другой день"></label></div>
     <div class="lab2">ВРЕМЯ · ${slots.length ? "свободные окна" : "свободных окон нет — выберите сами"}</div>
-    <div class="seg2">${slots.map(m => `<button data-act="qtime" data-t="${esc(hhmm(m))}" aria-pressed="${q.fixed === hhmm(m) ? "true" : "false"}">${esc(hhmm(m))}</button>`).join("")}<label class="other">другое <input id="q-time" type="time" value="${esc(q.fixed)}" aria-label="Другое время"></label><button data-act="qtime" data-t="" aria-pressed="${q.fixed ? "false" : "true"}">без времени</button></div>
+    <div class="seg2">${slots.map(m => `<button data-act="qtime" data-t="${esc(hhmm(m))}" aria-pressed="${q.fixed === hhmm(m) ? "true" : "false"}">${esc(hhmm(m))}</button>`).join("")}<button data-act="qtime" data-t="" aria-pressed="${q.fixed ? "false" : "true"}">без времени</button></div>
+    <div class="lab2">ИЛИ СВОЁ ВРЕМЯ</div>
+    <div class="seg2">${tField("q", "", false)}</div>
     ${clashBox(clash, q.clash, "qclash", 0)}
     <div class="lab2">ДЛИТСЯ</div>
+    ${durChips("qminset", q.min)}
     <div class="estimate"><button class="step" data-act="qmin" data-d="-15">−15</button><button class="step" data-act="qmin" data-d="-5">−5</button><span class="mins num">${dur(q.min)}</span><button class="step" data-act="qmin" data-d="5">+5</button><button class="step" data-act="qmin" data-d="15">+15</button></div>
     ${p.cat === "lesson" ? `<label class="check"><input id="q-prep" type="checkbox" ${q.prep ? "checked" : ""}> Добавить подготовку перед занятием</label>` : ""}
     <button class="primary big" data-act="qgo">Добавить в план</button>
@@ -1780,28 +1862,41 @@ function tomorrowCard(){
 
 function addSheet(){
   const d = S.draft;
-  const draftCats = CAT_ORDER.map(c => `<button class="cat" data-act="cat" data-cat="${esc(c)}" aria-pressed="${d.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("");
   return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Новая задача" data-stop="1">
     <h3>Новая задача · ${esc(relLabel(S.date))}</h3>
     <section class="add" aria-label="Сказать одной фразой">
       <label class="big" for="phrase">Написать одной фразой</label>
       <textarea id="phrase" class="field" rows="2" placeholder="Например: «завтра в 10 занятие с Мишей, потом пост в ВК»">${esc(S.phraseText)}</textarea>
+      <div class="why">Несколько дел — с новой строки, через точку, «потом» или каждое со своим временем. Запятая остаётся внутри одного дела.</div>
       <div class="why">Можно и править: «перенеси уборку на 18:00», «удали прогулку», «пост сделала». Без даты: «на потом купить ламинатор».</div>
-      ${S.phrase ? `<div class="suggest" aria-live="polite">
-        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map((a, i) => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}${a.type === "add" ? `<div class="pick"><label>День <input class="time" type="date" data-pa="date" data-i="${Number(i)}" value="${esc(a.date)}"></label><label>Время <input class="time" type="time" data-pa="time" data-i="${Number(i)}" value="${esc(a.fixed || "")}"></label></div>${clashBox(overlaps(a.date, a.fixed, a.min), a.clash || "both", "pclash", i)}` : ""}</li>`).join("")}</ul>
+      <div id="phrase-tail">${phraseTail()}</div>
+    </section>
+    <section class="add" aria-label="Новая задача">
+      <label class="big" for="title">Или по шагам</label>
+      <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
+      <div class="pick" id="draft-form"><label>День <input id="d-date" class="time" type="date" value="${esc(DATE_RE_T.test(d.date) ? d.date : S.date)}"></label><span class="lab3">Время</span>${tField("d", "fixed", true)}</div>
+      ${clashBox(overlaps(DATE_RE_T.test(d.date) ? d.date : S.date, d.fixed, d.min || 30), d.clash, "dclash", 0)}
+      <div id="draft-tail">${draftTail()}</div>
+    </section>
+    <div class="actions"><span class="why">Версия приложения: <b class="num">${esc(APP_VER)}</b></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
+  </div></div>`;
+}
+function phraseTail(){
+  return `${S.phrase ? `<div class="suggest" aria-live="polite">
+        ${S.phrase.length ? `<b>Поняла так:</b><ul class="plist">${S.phrase.map((a, i) => `<li class="${a.type === "miss" ? "miss" : ""}">${esc(describe(a))}${a.type === "add" ? `<div class="pick"><label>День <input class="time" type="date" data-pa="date" data-i="${Number(i)}" value="${esc(a.date)}"></label><span class="lab3">Время</span>${tField("p" + Number(i), "", true)}</div><div class="lab2">ДЛИТСЯ</div>${durChips("pminset", a.min, String(i))}${clashBox(overlaps(a.date, a.fixed, a.min), a.clash || "both", "pclash", i)}` : ""}</li>`).join("")}</ul>
         ${S.phrase.some(a => a.type === "add") ? `<div class="why">День и время можно поменять — нажмите на них. Пустое время — впишем в свободное окно.</div>` : ""}
         <div class="row">${S.phrase.some(a => a.type !== "miss") ? `<button class="primary" data-act="applyphrase">Применить</button>` : ""}<button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`
         : `<div class="why">Не нашла в фразе задач. Попробуйте, например: «в 15 консультация родителей на полчаса».</div><div class="row"><button class="ghost" data-act="cancelphrase">Изменить текст</button><button class="ghost" data-act="clearphrase">✕ Стереть</button></div>`}
       </div>` : `<div class="row">
         <button class="primary" data-act="parse">Разобрать фразу</button>
-        ${S.phraseText.trim() ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>`}
-    </section>
-    <section class="add" aria-label="Новая задача">
-      <label class="big" for="title">Или по шагам</label>
-      <input id="title" class="field" autocomplete="off" placeholder="Например: занятие с Мишей, пост в ВК, уборка" value="${esc(d.title)}">
-      <div class="pick" id="draft-form"><label>День <input id="d-date" class="time" type="date" value="${esc(DATE_RE_T.test(d.date) ? d.date : S.date)}"></label><label>Время <input id="fixed" class="time" type="time" value="${esc(d.fixed)}"></label>${d.fixed ? `<button class="linkbtn" data-act="clearfixed">без времени</button>` : ""}</div>
-      ${clashBox(overlaps(DATE_RE_T.test(d.date) ? d.date : S.date, d.fixed, d.min || 30), d.clash, "dclash", 0)}
-      ${d.title.trim() ? `<div class="suggest">
+        ${S.phraseText.trim() ? `<button class="ghost" data-act="clearphrase">✕ Стереть</button>` : ""}</div>`}`;
+}
+function draftTail(){
+  const d = S.draft;
+  const draftCats = CAT_ORDER.map(c => `<button class="cat" data-act="cat" data-cat="${esc(c)}" aria-pressed="${d.cat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("");
+  return `${d.title.trim() ? `<div class="suggest">
+        <div class="lab2">ДЛИТСЯ</div>
+        ${durChips("dminset", d.min || 30)}
         <div class="estimate">
           <button class="step" data-act="min" data-d="-15">−15</button><button class="step" data-act="min" data-d="-5">−5</button>
           <span class="mins num" aria-live="polite">${dur(d.min||30)}</span>
@@ -1812,10 +1907,7 @@ function addSheet(){
         ${d.fixed ? "" : `<div class="why">Без точного времени — впишем в свободное окно.</div>`}
         ${d.cat==="lesson"?`<label class="check"><input id="withprep" type="checkbox" ${d.withPrep?"checked":""}> Добавить подготовку к этому занятию</label>`:""}
         <div class="row"><button class="primary" data-act="add">Добавить в план</button></div>
-      </div>` : ""}
-    </section>
-    <div class="actions"><span></span><button class="ghost" data-act="closesheet">Закрыть</button></div>
-  </div></div>`;
+      </div>` : ""}`;
 }
 
 function presetSheet(){
@@ -1949,7 +2041,8 @@ function editSheet(){
     <input id="e-title" class="field" value="${esc(t._title !== undefined ? t._title : t.title)}" aria-label="Название">
     <div class="cats" role="group" aria-label="Вид дела">${CAT_ORDER.map(c => `<button class="cat" data-act="ecat" data-cat="${esc(c)}" aria-pressed="${curCat===c}"><i style="background:${color(c)}"></i>${esc(CATS[c].short)}</button>`).join("")}</div>
     <div class="row"><label for="e-min">Минут</label><input id="e-min" class="time num" type="number" inputmode="numeric" min="5" max="600" step="5" value="${esc(t._min !== undefined ? t._min : String(Number(t.min)||30))}">
-      <label for="e-fixed">Время</label><input id="e-fixed" class="time" type="time" value="${esc(t._fixed !== undefined ? t._fixed : (t.fixed||""))}"></div>
+      <span class="lab3">Время</span>${tField("e", "e-fixed", true)}</div>
+    ${durChips("eminset", t._min !== undefined ? t._min : t.min)}
     ${clashBox(overlaps(t._date !== undefined ? t._date : S.date, t._fixed !== undefined ? t._fixed : t.fixed, t._min !== undefined ? t._min : t.min, t.id), S.editClash || "both", "eclash", 0, "edit")}
     <div class="row"><label for="e-date">День</label><input id="e-date" class="time" type="date" value="${esc(t._date !== undefined ? t._date : S.date)}"><span class="why">другой день — задача переедет туда</span></div>
     ${t.fixed ? "" : `<div class="row"><span class="why">Порядок в дне:</span><button class="ghost" data-act="up" data-id="${esc(t.id)}" ${fi<=0?"disabled":""}>↑ Раньше</button><button class="ghost" data-act="down" data-id="${esc(t.id)}" ${fi>=flexIds.length-1?"disabled":""}>↓ Позже</button></div>`}
@@ -1967,16 +2060,17 @@ function editSheet(){
 }
 
 function settingsSheet(){
-  const s = S.settings;
+  const s = S.settings, sd = S.setDraft || {};
   return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="Настройки дня" data-stop="1">
     <h3>Настройки дня</h3>
     <div class="settings">
-      <label for="s-start">Начало дня</label><input id="s-start" class="time" type="time" value="${esc(s.dayStart)}">
-      <label for="s-end">Конец рабочего дня</label><input id="s-end" class="time" type="time" value="${esc(s.dayEnd)}">
-      <label for="s-gap">Пауза между делами, мин</label><input id="s-gap" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.gap)||0}">
-      <label for="s-after">После занятия (записи, проветрить), мин</label><input id="s-after" class="time num" type="number" min="0" max="60" step="5" value="${Number(s.afterLesson)||0}">
+      <span class="lab3">Начало дня</span><div>${tField("s-start", "s-start", false)}</div>
+      <span class="lab3">Конец рабочего дня</span><div>${tField("s-end", "s-end", false)}</div>
+      <label for="s-gap">Пауза между делами, мин</label><input id="s-gap" class="time num" type="number" min="0" max="60" step="5" value="${esc(sd.gap !== undefined ? String(sd.gap) : String(Number(s.gap)||0))}">
+      <label for="s-after">После занятия (записи, проветрить), мин</label><input id="s-after" class="time num" type="number" min="0" max="60" step="5" value="${esc(sd.after !== undefined ? String(sd.after) : String(Number(s.afterLesson)||0))}">
     </div>
-    <label class="check"><input id="s-alerts" type="checkbox" ${s.alerts ? "checked" : ""}> Окно и звук, когда начинается дело (пока приложение открыто)</label>
+    <p class="store" style="margin:0">Версия приложения: <b class="num">${esc(APP_VER)}</b></p>
+    <label class="check"><input id="s-alerts" type="checkbox" ${(sd.alerts !== undefined ? sd.alerts : s.alerts) ? "checked" : ""}> Окно и звук, когда начинается дело (пока приложение открыто)</label>
     <div class="actions"><span></span><span class="row"><button class="ghost" data-act="closesheet">Отмена</button><button class="primary" data-act="savesettings">Сохранить</button></span></div>
     <h3>Постоянные дела</h3>
     ${S.recurring.items.length ? `<ul class="plist">${S.recurring.items.map(r => `<li>${esc(r.title)} — ${esc(daysLabel(r.days))}${r.fixed ? ", в " + esc(r.fixed) : ""}, ${dur(r.min)} <button class="linkbtn danger" style="border:0" data-act="recdel" data-id="${esc(r.id)}">убрать</button></li>`).join("")}</ul>`
@@ -2048,12 +2142,13 @@ document.addEventListener("input", e => {
   if (e.target.id === "q-what" && S.q) { S.q.what = e.target.value.slice(0, 160); return; }
   if (e.target.id === "qe-title" && S.qe) { S.qe.title = e.target.value.slice(0, 120); S.qeMsg = ""; return; }
   if (e.target.dataset && e.target.dataset.pe && S.presetEdit) { const p = S.presetEdit[Number(e.target.dataset.i)]; if (p) { const k = e.target.dataset.pe; if (k === "title") p.title = e.target.value; if (k === "min") p.min = e.target.value; } return; }
-  if (e.target.id === "phrase") { const had = !!S.phraseText.trim(); S.phraseText = e.target.value; if (S.phrase || had !== !!S.phraseText.trim()) { S.phrase = null; render(); } return; }
+  /* while she types, only the part under the field is redrawn: replacing the field itself closed the iPhone keyboard */
+  if (e.target.id === "phrase") { const had = !!S.phraseText.trim(); S.phraseText = e.target.value; if (S.phrase || had !== !!S.phraseText.trim()) { S.phrase = null; S.tp = null; const pt = document.getElementById("phrase-tail"); if (pt) pt.innerHTML = phraseTail(); else render(); } return; }
   if (e.target.id === "title") {
     const had = !!S.draft.title.trim();
     S.draft.title = e.target.value; S.draft.ai = null;
     updateDraftEstimate();
-    if (had !== !!S.draft.title.trim()) render();
+    if (had !== !!S.draft.title.trim()) { const dt = document.getElementById("draft-tail"); if (dt) dt.innerHTML = draftTail(); else render(); }
     else { const m = document.querySelector(".mins"), w = document.getElementById("draft-why");
       if (m) m.textContent = dur(S.draft.min||30); if (w) w.textContent = S.draft.why||"";
       document.querySelectorAll('.add .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === S.draft.cat)));
@@ -2065,6 +2160,7 @@ document.addEventListener("input", e => {
    moment closed the wheel, so she had to tap the field again. Now, while a date/time field is
    open, the value is only remembered; the screen is redrawn once she leaves the field. */
 var pendingRender = false, pendingTimer = 0;
+function isTyping(){ const a = document.activeElement; return !!a && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && !["checkbox","radio","button","hidden"].includes(a.type))); }
 function isPicker(el){ return !!el && el.tagName === "INPUT" && (el.type === "time" || el.type === "date"); }
 function rr(el){ if (isPicker(el) && document.activeElement === el) pendingRender = true; else render(); }
 document.addEventListener("focusout", e => {
@@ -2075,7 +2171,7 @@ document.addEventListener("focusout", e => {
 document.addEventListener("change", e => {
   const render = () => rr(e.target);
   if (e.target.id === "fixed") { S.draft.fixed = e.target.value; render(); }
-  if (e.target.id === "q-date" && S.q && DATE_RE_T.test(e.target.value)) { S.q.date = e.target.value; S.q.fixed = ""; S.q.clash = "both"; render(); }
+  if (e.target.id === "q-date" && S.q && DATE_RE_T.test(e.target.value)) { S.q.date = e.target.value; S.q.clash = "both"; render(); }
   if (e.target.id === "q-time" && S.q) { S.q.fixed = TIME_RE.test(e.target.value) ? e.target.value : ""; S.q.clash = "both"; render(); }
   if (e.target.id === "q-prep" && S.q) { S.q.prep = e.target.checked; render(); }
   if (e.target.id === "d-date") { S.draft.date = DATE_RE_T.test(e.target.value) ? e.target.value : ""; render(); }
@@ -2096,7 +2192,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "qe-title") { e.preventDefault(); e.target.blur(); }
   if (e.key === "Enter" && e.target.id === "cl-new") { e.preventDefault(); document.querySelector('[data-act="cladd"]')?.click(); }
   if (e.key === "Enter" && e.target.id === "in-new") { e.preventDefault(); document.querySelector('[data-act="inadd"]')?.click(); }
-  if (e.key === "Escape" && (S.editing || S.showSettings || S.sheet)) { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.sheet = null; render(); }
+  if (e.key === "Escape" && (S.editing || S.showSettings || S.sheet)) { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.setDraft = null; S.tp = null; S.sheet = null; render(); }
 });
 document.addEventListener("pointerdown", unlockSound, {passive:true});
 document.addEventListener("click", e => {
@@ -2122,7 +2218,7 @@ document.addEventListener("click", e => {
     case "skipactual": S.askingDone = null; render(); break;
     case "up": move(id,-1); break;
     case "down": move(id,1); break;
-    case "edit": { S.editing = id; S.editClash = "both"; const t = S.tasks.find(x => x.id === id); if (t) t._origFixed = t.fixed; const r = t && t.rid ? S.recurring.items.find(x => x.id === t.rid) : null; S.editDays = r ? [...r.days] : []; render(); break; }
+    case "edit": { S.editing = id; S.editClash = "both"; S.tp = null; const t = S.tasks.find(x => x.id === id); if (t) t._origFixed = t.fixed; const r = t && t.rid ? S.recurring.items.find(x => x.id === t.rid) : null; S.editDays = r ? [...r.days] : []; render(); break; }
     case "ecat": { const t = S.tasks.find(x => x.id === S.editing); if (t) { t._cat = el.dataset.cat; document.querySelectorAll('.sheet .cat').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === el.dataset.cat))); } break; }
     case "eday": { const x = Number(el.dataset.day); S.editDays = S.editDays.includes(x) ? S.editDays.filter(y => y !== x) : [...S.editDays, x];
       el.setAttribute("aria-pressed", String(S.editDays.includes(x))); break; }
@@ -2155,20 +2251,20 @@ document.addEventListener("click", e => {
     case "delete": { const t = S.tasks.find(x => x.id === S.editing); if (t && t.rid) S.skip.push(t.rid);
       S.tasks = S.tasks.filter(x => x.id !== S.editing); S.editing = null; saveDay(); render(); break; }
     case "recdel": removeRecurring(id); render(); break;
-    case "closesheet": { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.sheet = null; render(); break; }
-    case "settings": S.sheet = null; S.showSettings = true; S.backupMsg = ""; render(); break;
+    case "closesheet": { dropSheetDraft(S.tasks.find(x => x.id === S.editing)); S.editing = null; S.showSettings = false; S.setDraft = null; S.tp = null; S.sheet = null; render(); break; }
+    case "settings": S.sheet = null; S.showSettings = true; S.backupMsg = ""; S.setDraft = null; S.tp = null; render(); break;
     case "go": S.sheet = null; goDate(el.dataset.date); break;
     case "prevweek": goDate(addDays(S.date, -7)); break;
     case "nextweek": goDate(addDays(S.date, 7)); break;
     case "energy": S.meta.energy = ENERGY_NEXT[S.meta.energy] || "ok"; saveDay(); render(); break;
-    case "addsheet": S.sheet = "add"; render(); setTimeout(() => { const p = document.getElementById("phrase"); if (p && !S.phrase) p.focus(); }, 50); break;
+    case "addsheet": S.sheet = "add"; S.tp = null; render(); break;
     case "tabtoday": S.sheet = null; S.editing = null; S.showSettings = false; if (S.date !== dkey(new Date())) goDate(dkey(new Date())); else { render(); window.scrollTo({top:0, behavior:"smooth"}); } break;
     case "tabweek": S.sheet = "week"; render(); break;
     case "tabinbox": S.sheet = "inbox"; render(); break;
     case "tabstats": S.sheet = "stats"; render(); break;
     case "plus10": { const t = S.tasks.find(x => x.id === id); if (t) { t.min = r5(t.min + 10); saveDay(); } render(); break; }
     case "inslot": { const it = S.inbox.items.find(x => x.id === id); if (it) { inboxToDay(id, el.dataset.at); S.flash = `Вставлено: ${it.title}`; } render(); break; }
-    case "inadd": { const v = ($("#in-new") || {}).value || ""; if (v.trim()) { addInbox(v); render(); setTimeout(() => $("#in-new")?.focus(), 0); } else $("#in-new")?.focus(); break; }
+    case "inadd": { const v = ($("#in-new") || {}).value || ""; if (v.trim()) { addInbox(v); render(); $("#in-new")?.focus(); } else $("#in-new")?.focus(); break; }
     case "intoday": { const it = S.inbox.items.find(x => x.id === id); if (it) { inboxToDay(id, ""); S.flash = `Добавлено в ${relLabel(S.date)}: ${it.title}`; } S.sheet = null; render(); break; }
     case "indel": S.inbox = {items:S.inbox.items.filter(x => x.id !== id)}; saveInbox(); render(); break;
     case "review": openReview(); render(); break;
@@ -2185,7 +2281,7 @@ document.addEventListener("click", e => {
       if (L.length) t.list = L; else delete t.list;
       if (t.rid) t.custom = true;
       saveDay(); render();
-      if (act === "cladd") setTimeout(() => $("#cl-new")?.focus(), 0);
+      if (act === "cladd") $("#cl-new")?.focus();
       break; }
     case "safetyrestore": safetyRestore(); break;
     case "calsheet": S.sheet = "cal"; S.calMsg = ""; render(); break;
@@ -2197,14 +2293,30 @@ document.addEventListener("click", e => {
       const today = dkey(new Date()); const date = S.date >= today ? S.date : today;
       S.q = {i:Number(el.dataset.i), what:"", date, fixed:"", min:p.min, prep:true, clash:"both"};
       const sl = freeSlots(date, p.min, p.cat, true); if (sl.length) S.q.fixed = hhmm(sl[0]);
-      S.sheet = "qadd"; render(); setTimeout(() => $("#q-what")?.focus(), 60); break; }
-    case "qday": if (S.q) { S.q.date = el.dataset.date; const pp = S.presets.items[S.q.i] || {}; const sl = freeSlots(S.q.date, S.q.min, pp.cat, S.q.prep); S.q.fixed = sl.length ? hhmm(sl[0]) : ""; S.q.clash = "both"; } render(); break;
-    case "qtime": if (S.q) { S.q.fixed = TIME_RE.test(el.dataset.t) ? el.dataset.t : ""; S.q.clash = "both"; } render(); break;
+      S.sheet = "qadd"; S.tp = null; render(); break; }
+    case "qday": if (S.q) { S.q.date = el.dataset.date; if (!S.q.timeSet) { const pp = S.presets.items[S.q.i] || {}; const sl = freeSlots(S.q.date, S.q.min, pp.cat, S.q.prep); S.q.fixed = sl.length ? hhmm(sl[0]) : ""; } S.q.clash = "both"; } render(); break;
+    case "qtime": if (S.q) { S.q.fixed = TIME_RE.test(el.dataset.t) ? el.dataset.t : ""; S.q.timeSet = true; S.q.clash = "both"; } S.tp = null; render(); break;
+    /* own time picker */
+    case "tp": { const k = el.dataset.k; if (S.showSettings) keepSettingsDraft(); if (S.editing) keepSheetDraft(); S.tp = S.tp === k ? null : k; render(); break; }
+    case "tph": case "tpm": { const k = el.dataset.k, v = Number(el.dataset.v), cur = tpGet(k);
+      let h = cur ? Number(cur.slice(0, 2)) : (act === "tph" ? v : Math.min(23, Math.max(6, new Date().getHours() + 1))), m = cur ? Number(cur.slice(3, 5)) : 0;
+      if (act === "tph") h = v; else m = v;
+      if (S.showSettings) keepSettingsDraft();
+      tpSet(k, String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0"));
+      if (act === "tpm") S.tp = null;
+      render(); break; }
+    case "tpclear": { if (S.showSettings) keepSettingsDraft(); tpSet(el.dataset.k, ""); S.tp = null; render(); break; }
+    case "tpdone": { if (S.showSettings) keepSettingsDraft(); if (S.editing) keepSheetDraft(); S.tp = null; render(); break; }
+    /* duration buttons */
+    case "qminset": if (S.q) S.q.min = Number(el.dataset.v) || 30; render(); break;
+    case "dminset": S.draft.min = Number(el.dataset.v) || 30; S.draft.minManual = true; render(); break;
+    case "pminset": { const a = S.phrase && S.phrase[Number(el.dataset.i)]; if (a && a.type === "add") { a.min = Number(el.dataset.v) || 30; a.clash = "both"; } render(); break; }
+    case "eminset": { keepSheetDraft(); const t = S.tasks.find(x => x.id === S.editing); if (t) t._min = String(Number(el.dataset.v) || 30); render(); break; }
     case "qmin": if (S.q) S.q.min = r5(Math.min(600, Math.max(5, S.q.min + Number(el.dataset.d)))); render(); break;
     case "qclash": if (S.q) S.q.clash = el.dataset.v; render(); break;
     case "qgo": qAdd(); break;
     case "qmanage": S.qConfirm = false; S.qUndo = null; S.sheet = "qmanage"; render(); break;
-    case "qnew": S.qe = {id:"", title:"", icon:"⭐", cat:"other", min:30}; S.qeMsg = ""; S.qeFrom = S.sheet; S.sheet = "qedit"; render(); setTimeout(() => $("#qe-title")?.focus(), 60); break;
+    case "qnew": S.qe = {id:"", title:"", icon:"⭐", cat:"other", min:30}; S.qeMsg = ""; S.qeFrom = S.sheet; S.sheet = "qedit"; render(); break;
     case "qedit": { const p = S.presets.items[Number(el.dataset.i)]; if (!p) break; S.qe = {...p}; S.qeMsg = ""; S.qeFrom = "qmanage"; S.sheet = "qedit"; render(); break; }
     case "qicon": if (S.qe) S.qe.icon = ICON_SET[Number(el.dataset.e)] || S.qe.icon; render(); break;
     case "qcat": if (S.qe) S.qe.cat = safeCat(el.dataset.cat); render(); break;
@@ -2241,7 +2353,7 @@ document.addEventListener("click", e => {
       const st = $("#s-start").value || S.settings.dayStart, en = $("#s-end").value || S.settings.dayEnd;
       S.settings = {dayStart:st, dayEnd: toMin(en) > toMin(st) ? en : S.settings.dayEnd,
         gap: Math.max(0, Math.min(60, Number($("#s-gap").value)||0)), afterLesson: Math.max(0, Math.min(60, Number($("#s-after").value)||0)), alerts: !!($("#s-alerts") || {}).checked};
-      saveSettings(); S.showSettings = false; render(); break; }
+      saveSettings(); S.showSettings = false; S.setDraft = null; S.tp = null; render(); break; }
     case "backup": doBackup(); break;
     case "restore": doRestore(); break;
     case "example": fillExample(); break;
@@ -2252,8 +2364,8 @@ document.addEventListener("click", e => {
     case "toastundo": if (S.toast) { undoSnapshot(S.toast.undo); S.toast = null; S.flash = "Отменено."; } render(); break;
     case "toastclose": S.toast = null; render(); break;
     case "toastopen": { const d = S.toast && S.toast.date; S.toast = null; if (d) goDate(d); else render(); break; }
-    case "cancelphrase": S.phrase = null; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
-    case "clearphrase": S.phrase = null; S.phraseText = ""; VOICE.msg = ""; render(); setTimeout(() => { const el = document.getElementById("phrase"); if (el) el.focus(); }, 0); break;
+    case "cancelphrase": S.phrase = null; S.tp = null; render(); break;
+    case "clearphrase": S.phrase = null; S.phraseText = ""; VOICE.msg = ""; S.tp = null; render(); break;
     case "applyphrase": {
       const acts = [];
       for (const a of S.phrase || []) {
@@ -2293,7 +2405,7 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 setInterval(checkAlert, 20000); setTimeout(checkAlert, 1500);
 window.addEventListener("online", () => SYNC.run());
 setInterval(() => { if (document.visibilityState === "visible") SYNC.run(); }, 120000);
-setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && !S.sheet && document.activeElement?.tagName !== "INPUT") render(); }, 60000);
+setInterval(() => { if (S.date === dkey(new Date()) && !S.editing && !S.showSettings && !S.sheet && !isTyping()) render(); }, 60000);
 
 (async () => { try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch(e) {} })();
 })();
